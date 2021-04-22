@@ -124,5 +124,82 @@ let rec eval conf map attacker trace counter =
 		| Retire -> (conf, trace, counter) 
 	)
 
+open Graph
+open Flow_network
+
 let rec blade c =
-	failwith "Not yet implemented"
+	let module G = MatrixGraph in
+	let module S = BFS(G) in
+	let module N = FlowNetworkMaker (G) (S) in
+	let var_nodes = Hashtbl.create 10 in
+	let create_node (r: rhs) (g: rhs G.graph) : (rhs G.graph * G.node) =
+		match Hashtbl.find_opt var_nodes r with
+		| Some node -> (g, node)
+		| None ->
+			let (g, node) = G.add_node g r in
+			Hashtbl.add var_nodes r node;
+			(g, node)
+	in let rec blade_expr (e: expr) (g: rhs G.graph) (depth: int): (rhs G.graph * G.node) =
+		let (g, new_node) = create_node (Expr e) g in
+		match e with
+		| BinOp (e1, e2, op) ->
+			let (g, n1) = blade_expr e1 g depth in
+			let (g, n2) = blade_expr e2 g depth in
+			let g = G.connect g (n1, new_node) 1 in
+			let g = G.connect g (n2, new_node) 1 in (g, new_node)
+		| InlineIf (e1, e2, e3) ->
+			let (g, n1) = blade_expr e1 g depth in
+			let (g, n2) = blade_expr e2 g depth in
+			let (g, n3) = blade_expr e3 g depth in
+			let g = G.connect g (n1, new_node) 1 in
+			let g = G.connect g (n2, new_node) 1 in
+			let g = G.connect g (n3, new_node) 1 in (g, new_node)
+		| _ -> (g, new_node)
+	in let blade_rhs (r: rhs) (g: rhs G.graph) (depth: int): (rhs G.graph * G.node) =
+		let source = G.source g in
+		let sink = G.sink g in
+		let (g, new_node) = create_node r g in
+		match r with
+		| Expr e -> blade_expr e g depth
+		| ArrayRead (i, e) ->
+			let (g, expr_node) = blade_expr e g depth in
+			let g = G.connect g (expr_node, sink) 1 in
+			let g = G.connect g (source, new_node) 1 in
+			let g = G.connect g (expr_node, new_node) 1 in (g, new_node)
+		| PtrRead e ->
+			let (g, expr_node) = blade_expr e g depth in
+			let g = G.connect g (expr_node, sink) 1 in
+			let g = G.connect g (source, new_node) 1 in
+			let g = G.connect g (expr_node, new_node) 1 in (g, new_node)
+	in let rec blade_cmd (c: cmd) (g: rhs G.graph) (depth: int): rhs G.graph =
+		let sink = G.sink g in
+		match c with
+		| Skip | Fail -> g
+		| Seq (c1, c2) ->
+			let g = blade_cmd c1 g depth in
+			blade_cmd c2 g depth
+		| If (e, c1, c2) ->
+			let (g, enode) = blade_expr e g depth in
+			let g = blade_cmd c1 g depth in
+			let g = blade_cmd c2 g depth in
+			G.connect g (enode, sink) 1
+		| While (e, body) ->
+			let (g, enode) = blade_expr e g depth in
+			let g = blade_cmd body g (depth + 1) in
+			G.connect g (enode, sink) 1
+		| VarAssign (name, r) ->
+			let (g, varnode) = create_node (Expr (Var name)) g in
+			let (g, rnode) = blade_rhs r g depth in
+			G.connect g (varnode, rnode) 1
+		| PtrAssign (e1, e2) ->
+			let (g, n1) = blade_expr e1 g depth in
+			let (g, n2) = blade_expr e2 g depth in
+			G.connect g (n1, sink) 1
+		| ArrAssign (i, e1, e2) ->
+			let (g, n1) = blade_expr e1 g depth in
+			let (g, n2) = blade_expr e2 g depth in
+			G.connect g (n1, sink) 1
+		| Protect (name, prot, r) -> 
+			let (g, n) = blade_rhs r g depth in g
+
+	in failwith ""
