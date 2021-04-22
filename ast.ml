@@ -1,14 +1,21 @@
+module StringMap = Map.Make(String)
+
 type identifier = string
 
 type op = string
+
+type value = 
+  | Ival of int
+  | Aval of int * int
+  | Pval of int 
 
 type expr =
   | CstI of int
   | Var of identifier
   | BinOp of expr * expr * op
   | InlineIf of expr * expr * expr
-  | Length of expr
-  | Base of expr
+  | Length of identifier
+  | Base of identifier
 
 type rhs =
   | Expr of expr
@@ -48,7 +55,8 @@ type observation =
 (**        INSTRUCTION SET        **)
 type instruction =
   | Nop
-  | Assign of identifier * expr
+  | AssignV of identifier * value
+  | AssignE of identifier * expr
   | Load of identifier * expr                   (*     id := load(e)         *)
   | Store of expr * expr
   | IProtect of identifier * protect * expr     (*     id := protect(e)     *)
