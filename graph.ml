@@ -4,51 +4,54 @@
 module type Graph = sig
 	(* types *)
 	type node
-	type graph
+	type 'a graph
 	type edge = node * node
 
 	(* Creates an empty graph, with an unconnected source and sink *)
-	val empty : graph
+	val empty : unit -> 'a graph
 
 	(* Creates a new unconnected node in the graph *)
-	val add_node : graph -> (graph * node)
+	val add_node : 'a graph -> 'a -> ('a graph * node)
 
 	(* Connects node1 to node2 with capacity int in graph *)
-	val connect : graph -> edge -> int -> graph
+	val connect : 'a graph -> edge -> int -> 'a graph
 
 	(* Disconnects node1 to node2 in graph *)
-	val disconnect : graph -> edge -> graph
+	val disconnect : 'a graph -> edge -> 'a graph
 
 	(* Returns the capacity of the edge from node 1 to node 2 in graph. 
 	   Is 0 if the edge does not exist *)
-	val capacity : graph -> edge -> int 
+	val capacity : 'a graph -> edge -> int 
 
 	(* Returns a list of neighbors and their edge capacities of node in graph *)
-	val neighbors : graph -> node -> (node * int) list
+	val neighbors : 'a graph -> node -> (node * int) list
 
 	(* Returns a list of outgoing edges from a node *)
-	val outgoing : graph -> node -> edge list
+	val outgoing : 'a graph -> node -> edge list
 
 	(* Number of nodes in the graph *)
-	val size : graph -> int
+	val size : 'a graph -> int
 
 	(* Returns the source *)
-	val source : graph -> node
+	val source : 'a graph -> node
 
 	(* Returns the sink *)
-	val sink : graph -> node
+	val sink : 'a graph -> node
 
 	(* Returns a list of the nodes in the graph *)
-	val nodes : graph -> node list
+	val nodes : 'a graph -> node list
 
 	(* Prints the graph *)
-	val print : graph -> unit
+	val print : 'a graph -> unit
 
 	(* Print node *)
 	val print_node : node -> unit
 
 	(* Copies the graph *)
-	val copy : graph -> graph
+	val copy : 'a graph -> 'a graph
+
+	(* Returns the contents of a node (None if source or sink) *)
+	val contents : 'a graph -> node -> 'a option
 end 
 
 (* Graph representation as an matrix:
@@ -57,176 +60,68 @@ end
 module MatrixGraph : Graph = struct
 	type node = int
 	type 'a matrix = 'a array array 
-	type graph = int matrix
+	type 'a graph = {
+		mat: int matrix;
+		conts: 'a option array }
 	type edge = node * node
 
-	let (empty : graph) =
-		let source = [| 0; 0 |] in 
-		let sink = [| 0; 0 |] in
-		[| source; sink |]
+	let empty (_ : unit) : 'a graph =
+		let source = [| 0; 0 |] in
+		let sink = [| 0; 0 |] in {
+			mat = [| source; sink |];
+			conts = [| None; None |] }
 
-	let add_node (g : graph) : graph * node =
+	let add_node (g : 'a graph) (value: 'a) : 'a graph * node =
 		let extend_with_zero (a : int array) : int array = Array.append a [| 0 |] in
-		let old_size = Array.length g.(0) in 
-		let extended_graph = Array.map extend_with_zero g in 
-		let new_node = Array.make (old_size + 1) 0 in
-		(Array.append extended_graph [|new_node|], old_size)
+		let old_size = Array.length g.mat.(0) in 
+		let extended_graph = Array.map extend_with_zero g.mat in 
+		let new_node = Array.make (old_size + 1) 0 in ({
+			mat = Array.append extended_graph [|new_node|];
+			conts = Array.append g.conts [| Some value |]; }, old_size)
 
-	let size : graph -> int = Array.length
+	let size (g: 'a graph): int = g.mat |> Array.length 
 
-	let outgoing (g : graph) (from : node) : edge list =
+	let outgoing (g : 'a graph) (from : node) : edge list =
 		let out = ref [] in 
 		let add_edge (dest : node) (c : int) : unit = 
 			if c <= 0 then () else out := (from, dest) :: (!out) in
-		Array.iteri add_edge g.(from);
+		Array.iteri add_edge g.mat.(from);
 		!out
 
-	let connect (g : graph) ((from, dest) : edge) (c : int) : graph =
-		g.(from).(dest) <- c; g
+	let connect (g : 'a graph) ((from, dest) : edge) (c : int) : 'a graph =
+		g.mat.(from).(dest) <- c; g
 
-	let disconnect (g : graph) ((from, dest) : edge) : graph =
-		g.(from).(dest) <- 0; g
+	let disconnect (g : 'a graph) ((from, dest) : edge) : 'a graph =
+		g.mat.(from).(dest) <- 0; g
 
-	let capacity (g : graph) ((from, dest) : edge) : int =
-		g.(from).(dest)
+	let capacity (g : 'a graph) ((from, dest) : edge) : int =
+		g.mat.(from).(dest)
 
-	let source (_ : graph) : node = 0
+	let source (_ : 'a graph) : node = 0
 
-	let sink (_ : graph) : node = 1
+	let sink (_ : 'a graph) : node = 1
 
-	let nodes (g : graph) : node list =
+	let nodes (g : 'a graph) : node list =
 		let rec list_0_n (n : int) (acc : int list) = 
 			if n = 0 then acc else
 			list_0_n (n - 1) ((n - 1) :: acc) in
 		list_0_n (size g) []
 
-	let neighbors (g : graph) (n :node) : (node * int) list =
-		g.(n) |> Array.to_list |> List.combine (nodes g) |> List.filter (fun (_, c) -> c > 0) 
+	let neighbors (g : 'a graph) (n :node) : (node * int) list =
+		g.mat.(n) |> Array.to_list |> List.combine (nodes g) |> List.filter (fun (_, c) -> c > 0) 
 
-	let print : graph -> unit = 
+	let print (g : 'a graph) : unit = 
 		let print_row (a : int array) : unit = Array.iter (Printf.printf "%d,") a; print_endline "" in
-		Array.iter print_row
+		Array.iter print_row g.mat
 
 	let print_node n : unit = 
 		if n = 0 then print_string "source"
 		else if n = 1 then print_string "sink" 
 		else print_int n 
 
-	let copy : graph -> graph = 
-		Array.map (Array.copy)
+	let copy (g : 'a graph): 'a graph = {
+			mat = Array.map (Array.copy) g.mat;
+			conts = Array.copy g.conts; }
+
+	let contents (g: 'a graph) (n: node) : 'a option = g.conts.(n)
 end
-
-(* Graph representation as a list of lists 
-   This is the idiomatic way, but it's slow *)
-
-module NaiveGraph : Graph = struct
-	type node = string
-	type graph = (node * ((node * int) list)) list
-	type edge = node * node
-
-	let empty = [("source", []); ("sink", [])] 
-
-	let add_node : graph -> (graph * node) =
-		let ncounter = ref 0 in 
-		fun (g : graph) -> 
-			let n = string_of_int !ncounter in 
-			ncounter := !ncounter + 1;
-			(n, []) :: g, n	
-
-	let neighbors (g : graph) (n : node) : (node * int) list = List.assoc n g
-
-	let disconnect (g : graph) ((from, dest) : edge) : graph = 
-		let ns = neighbors g from |> List.remove_assoc dest in
-		(from, ns) :: (List.remove_assoc from g)
-
-	let connect (g : graph) ((from, dest) : edge) (c : int) : graph = 
-		if c <= 0 then disconnect g (from, dest) else
-		let ns = neighbors g from |> List.remove_assoc dest in
-		(from, (dest, c) :: ns) :: (List.remove_assoc from g)
-
-	let capacity (g : graph) ((from, dest) : edge) : int = 
-		try neighbors g from |> List.assoc dest with Not_found -> 0
-
-	let outgoing (g : graph) (n : node) : edge list = 
-		neighbors g n |> List.split |> fst |> List.map (fun d -> (n,d))
-
-	let size : graph -> int = List.length
-
-	let source (_ : graph) : node = "source"
-
-	let sink (_ : graph) : node = "sink"
-
-	let print_node : node -> unit = print_string
-
-	let print (g : graph) : unit = 
-		let print_node_with_edges (n, ns) = 
-			Printf.printf "%s\n" n;
-			List.iter (fun (n', c) -> Printf.printf "(%s,%d)" n' c) ns;
-			print_endline "" in
-		List.iter print_node_with_edges g
-
-	let copy (g : graph) : graph = g
-
-	let nodes (g : graph) : node list = List.split g |> fst
-end 
-
-(* Graph representation as an array:
-   Node [i] is at position i in the array, and 
-   contains a list of (node, capacity) pairs 
-   representing outgoing edges*)
-
-module ArrayGraph : Graph = struct
-	type node = int
-	type graph = ((node * int) list) array
-	type edge = node * node
-
-	let empty = [|[];[]|]
-
-	let size : graph -> int = Array.length
-
-	let add_node (g : graph) : (graph * node) =
-		let num = size g in
-		Array.append g [|[]|], num
-
-	let disconnect (g : graph) ((from, dest) : edge) : graph = 
-		g.(from) <- List.remove_assoc dest g.(from); 
-		g
-
-	let connect (g : graph) ((from, dest) : edge) (c :  int) : graph = 
-	 	let g' = disconnect g (from, dest) in
-		begin if c > 0 then g'.(from) <- (dest, c) :: g'.(from) end; 
-		g'
-
-	let capacity (g : graph) ((from, dest) : edge) : int = 
-		try List.assoc dest g.(from) with Not_found -> 0
-
-	let neighbors : graph -> node -> (node * int) list = Array.get
-
-	let outgoing (g : graph) (n : node) : edge list = 
-		g.(n) |> List.split |> fst |> List.map (fun d -> (n, d)) 
-
-	let source (_ : graph) : node = 0
-
-	let sink (_ : graph) : node = 1
-
-	let print_node (n : node) : unit = 
-		if n = 0 then print_string "source"
-		else if n = 1 then print_string "sink" 
-		else print_int n 
-
-	let print (g : graph) : unit = 
-		let print_edge (n, c) = 
-			print_string "("; print_node n; print_string ","; print_int c; print_string ")" in
-		let print_node_with_edges (n : node) e =
-			print_node n; print_endline "";
-			List.iter print_edge e; print_endline "" in
-		Array.iteri print_node_with_edges g
-
-	let copy : graph -> graph = Array.copy
-
-	let nodes (g : graph) : node list = 
-		let rec list_0_n (n : int) (acc : int list) = 
-			if n = 0 then acc else
-			list_0_n (n - 1) ((n - 1) :: acc) in
-		list_0_n (size g) []
-end 

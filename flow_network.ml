@@ -1,21 +1,21 @@
 module type Graph = sig
 	type node
-	type graph
+	type 'a graph
 	type edge = node * node
-	val empty : graph
-	val add_node : graph -> (graph * node)
-	val connect : graph -> edge -> int -> graph
-	val disconnect : graph -> edge -> graph
-	val capacity : graph -> edge -> int 
-	val neighbors : graph -> node -> (node * int) list
-	val outgoing : graph -> node -> edge list
-	val size : graph -> int
-	val source : graph -> node
-	val sink : graph -> node
-	val nodes : graph -> node list
-	val print : graph -> unit
+	val empty : unit -> 'a graph
+	val add_node : 'a graph -> 'a -> ('a graph * node)
+	val connect : 'a graph -> edge -> int -> 'a graph
+	val disconnect : 'a graph -> edge -> 'a graph
+	val capacity : 'a graph -> edge -> int 
+	val neighbors : 'a graph -> node -> (node * int) list
+	val outgoing : 'a graph -> node -> edge list
+	val size : 'a graph -> int
+	val source : 'a graph -> node
+	val sink : 'a graph -> node
+	val nodes : 'a graph -> node list
+	val print : 'a graph -> unit
 	val print_node : node -> unit
-	val copy : graph -> graph
+	val copy : 'a graph -> 'a graph
 end 
 
 type ('a, 'b) either =
@@ -24,32 +24,31 @@ type ('a, 'b) either =
 
 module type FlowNetwork = sig 
 	type flow 
-	type graph
+	type 'a graph
 	type path
 	type node
-	val make_graph : string list -> (string * string * int) list -> graph
-	val max_flow : graph -> flow
-	val min_cut : graph -> node list
- 	val flow_capacity : graph -> flow -> int
- 	val print : graph -> unit
+	val max_flow : 'a graph -> flow
+	val min_cut : 'a graph -> node list
+ 	val flow_capacity : 'a graph -> flow -> int
+ 	val print : 'a graph -> unit
 end 
 
 module type PathSearch = sig 
 	type path
-	type graph
+	type 'a graph
 	type node
-	val find_path : graph -> (path, node list) either
+	val find_path : 'a graph -> (path, node list) either
 end 
 
 (* Implements BFS as a path finding procedure. This makes the max flow
    algorithm the Edmonds-Karp algorithm *)
-module BFS (G : Graph) : PathSearch with type path = G.edge list and type node = G.node and type graph = G.graph = struct
-	type graph = G.graph
+module BFS (G : Graph) : PathSearch with type path = G.edge list and type node = G.node and type 'a graph = 'a G.graph = struct
+	type 'a graph = 'a G.graph
 	type node = G.node
 	type edge = node * node
  	type path = edge list
 
-	let find_path (g : graph) : (path, node list) either = 
+	let find_path (g : 'a graph) : (path, node list) either = 
 		(* places the backpointer path for the graph in previous *)
  		let rec bfs (frontier : node Queue.t) (previous : (node,node) Hashtbl.t) (explored : (node, unit) Hashtbl.t) : unit = 
  			let update_data parent f p candidate : unit = 
@@ -82,33 +81,19 @@ module BFS (G : Graph) : PathSearch with type path = G.edge list and type node =
 end 
 
 module FlowNetworkMaker (G : Graph) 
-		(S : PathSearch with type path = G.edge list and type node = G.node and type graph = G.graph) 
-		: FlowNetwork with type node = G.node and type graph = G.graph = struct
+		(S : PathSearch with type path = G.edge list and type node = G.node and type 'a graph = 'a G.graph) 
+		: FlowNetwork with type node = G.node and type 'a graph = 'a G.graph = struct
 	type node = G.node
  	type edge = G.edge
  	type path = S.path
  	type flow = (edge, int) Hashtbl.t
- 	type graph = G.graph
-
- 	(* Note: name of source must be 'source', and name of sink must be 'sink'. Thus, v
- 	   should be all nodes not including the source and the sink *)
- 	let make_graph (v : string list) (e : (string * string * int) list) : graph = 
- 		let add_by_name (g, lst) name = 
- 			let g', n = G.add_node g in (g', (name, n) :: lst) in
- 		let add_all_by_name (g : graph) : graph * ((string * node) list) =
- 			let g', name_map = List.fold_left add_by_name (g, []) v in 
- 			(g', ("source", G.source g) :: ("sink", G.sink g) :: name_map) in
- 		let net, name_map = add_all_by_name G.empty in 
- 		let add_edge_by_name g (name1, name2, c) =
- 			let e = (List.assoc name1 name_map, List.assoc name2 name_map) in 
- 			G.connect g e c in
- 		List.fold_left add_edge_by_name net e
-
+ 	type 'a graph = 'a G.graph
+	
  	let print = G.print 
 
  	let reverse ((s,t) : edge) : edge = (t,s) 
 
- 	let min_capacity (g : graph) (p : path) : int = 
+ 	let min_capacity (g : 'a graph) (p : path) : int = 
  		let minc (c : int) (e : edge) : int = 
  			G.capacity g e |> min c in
  		List.fold_left minc max_int p 
@@ -124,8 +109,8 @@ module FlowNetworkMaker (G : Graph)
  		 	fl in
  		List.fold_left update f p
 
-	let update_flow_network (g : graph) (delta : int) (p : path) : graph = 
-		let update_capacity (gf : graph) (e : edge) : graph = 
+	let update_flow_network (g : 'a graph) (delta : int) (p : path) : 'a graph = 
+		let update_capacity (gf : 'a graph) (e : edge) : 'a graph = 
 			let old = G.capacity gf e in 
 			let old_back = G.capacity gf (reverse e) in
 			let gf' = G.connect gf e (old - delta) in
@@ -141,8 +126,8 @@ module FlowNetworkMaker (G : Graph)
 
 	let print_path p : unit = List.iter (print_edge) p; print_endline ""
 
- 	let max_flow (g : graph) : flow = 
- 		let rec helper (f : flow) (gf : graph) : flow = 
+ 	let max_flow (g : 'a graph) : flow = 
+ 		let rec helper (f : flow) (gf : 'a graph) : flow = 
  			match S.find_path gf with 
  			| Right _ -> f
  			| Left p -> let delta = min_capacity gf p in
@@ -150,8 +135,8 @@ module FlowNetworkMaker (G : Graph)
 	 					helper (update_flow f p delta) gf' in
  		G.copy g |> helper (Hashtbl.create (G.size g))
 
- 	let min_cut (g : graph) : node list = 
- 		let rec helper (f : flow) (gf : graph) : node list = 
+ 	let min_cut (g : 'a graph) : node list = 
+ 		let rec helper (f : flow) (gf : 'a graph) : node list = 
  			match S.find_path gf with 
  			| Right l -> l
  			| Left p -> let delta = min_capacity gf p in
@@ -159,7 +144,7 @@ module FlowNetworkMaker (G : Graph)
 	 					helper (update_flow f p delta) gf' in
  		G.copy g |> helper (Hashtbl.create (G.size g))
 
- 	let flow_capacity (g : graph) (f : flow) : int = 
+ 	let flow_capacity (g : 'a graph) (f : flow) : int = 
  		G.source g |> G.outgoing g |> 
  		List.fold_left (fun acc x -> try acc + Hashtbl.find f x with Not_found -> acc) 0 
 end
