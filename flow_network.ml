@@ -18,12 +18,18 @@ module type Graph = sig
 	val copy : graph -> graph
 end 
 
+type ('a, 'b) either =
+	| Left of 'a
+	| Right of 'b
+
 module type FlowNetwork = sig 
 	type flow 
 	type graph
 	type path
+	type node
 	val make_graph : string list -> (string * string * int) list -> graph
 	val max_flow : graph -> flow
+	val min_cut : graph -> node list
  	val flow_capacity : graph -> flow -> int
  	val print : graph -> unit
 end 
@@ -31,29 +37,31 @@ end
 module type PathSearch = sig 
 	type path
 	type graph
-	val find_path : graph -> path option
+	type node
+	val find_path : graph -> (path, node list) either
 end 
 
 (* Implements BFS as a path finding procedure. This makes the max flow
    algorithm the Edmonds-Karp algorithm *)
-module BFS (G : Graph) : PathSearch with type path = G.edge list and type graph = G.graph = struct
+module BFS (G : Graph) : PathSearch with type path = G.edge list and type node = G.node and type graph = G.graph = struct
 	type graph = G.graph
 	type node = G.node
 	type edge = node * node
  	type path = edge list
 
-	let find_path (g : graph) : path option = 
+	let find_path (g : graph) : (path, node list) either = 
 		(* places the backpointer path for the graph in previous *)
- 		let rec bfs (frontier : node Queue.t) (previous : (node,node) Hashtbl.t) : unit = 
+ 		let rec bfs (frontier : node Queue.t) (previous : (node,node) Hashtbl.t) (explored : (node, unit) Hashtbl.t) : unit = 
  			let update_data parent f p candidate : unit = 
  				if Hashtbl.mem p candidate then () else
  				begin Queue.add candidate f;
  				Hashtbl.add p candidate parent end in 
  			if Queue.is_empty frontier then () else
  			let cur = Queue.pop frontier in
+			Hashtbl.replace explored cur ();
  			G.neighbors g cur |> List.split |> fst |> List.iter (update_data cur frontier previous);
  			if Hashtbl.mem previous (G.sink g) then () else
- 			bfs frontier previous in 
+ 			bfs frontier previous explored in 
  		(* transforms a list of nodes into a list of edges between them, but reverses order *)
  		let rec edgify (acc : path) : node list -> path = function
  			| n1 :: n2 :: tl -> edgify ((n1, n2) :: acc) (n2::tl)
@@ -61,58 +69,21 @@ module BFS (G : Graph) : PathSearch with type path = G.edge list and type graph 
  		let q = Queue.create () in 
  		Queue.add (G.source g) q;
  		let parents = G.size g |> Hashtbl.create in
- 		bfs q parents;
+		let explored = G.size g |> Hashtbl.create in
+ 		bfs q parents explored;
  		let rec extract_path : node list -> node list = function
  			| h :: t -> let prev = Hashtbl.find parents h in 
  						if prev = G.source g then prev :: h :: t else
  						extract_path (prev :: h :: t)
  			| _ -> failwith "impossible" in
  		try begin 
- 			Some (extract_path [G.sink g] |> edgify [])
- 		end with Not_found -> None
-end 
-
-(* Implements DFS as a path finding procedure. This makes the max flow
-   algorithm the Ford-Fulkerson algorithm *)
-module DFS (G : Graph) : PathSearch with type path = G.edge list and type graph = G.graph = struct
-	type graph = G.graph
-	type node = G.node
-	type edge = node * node
- 	type path = edge list
-
-	let find_path (g : graph) : path option = 
-		(* places the backpointer path for the graph in previous *)
- 		let rec dfs (frontier : node Stack.t) (previous : (node,node) Hashtbl.t) : unit = 
- 			let update_data parent f p candidate : unit = 
- 				if Hashtbl.mem p candidate then () else
- 				begin Stack.push candidate f;
- 				Hashtbl.add p candidate parent end in 
- 			if Stack.is_empty frontier then () else
- 			let cur = Stack.pop frontier in
- 			G.neighbors g cur |> List.split |> fst |> List.iter (update_data cur frontier previous);
- 			if Hashtbl.mem previous (G.sink g) then () else
- 			dfs frontier previous in 
- 		(* transforms a list of nodes into a list of edges between them, but reverses order *)
- 		let rec edgify (acc : path) : node list -> path = function
- 			| n1 :: n2 :: tl -> edgify ((n1, n2) :: acc) (n2::tl)
- 			| _ -> acc in 
- 		let q = Stack.create () in 
- 		Stack.push (G.source g) q;
- 		let parents = G.size g |> Hashtbl.create in
- 		dfs q parents;
- 		let rec extract_path : node list -> node list = function
- 			| h :: t -> let prev = Hashtbl.find parents h in 
- 						if prev = G.source g then prev :: h :: t else
- 						extract_path (prev :: h :: t)
- 			| _ -> failwith "impossible" in
- 		try begin 
- 			Some (extract_path [G.sink g] |> edgify [])
- 		end with Not_found -> None
+ 			Left (extract_path [G.sink g] |> edgify [])
+ 		end with Not_found -> (Right (Hashtbl.fold (fun k v ks -> k::ks) explored []))
 end 
 
 module FlowNetworkMaker (G : Graph) 
-		(S : PathSearch with type path = G.edge list and type graph = G.graph) 
-		: FlowNetwork with type graph = G.graph = struct
+		(S : PathSearch with type path = G.edge list and type node = G.node and type graph = G.graph) 
+		: FlowNetwork with type node = G.node and type graph = G.graph = struct
 	type node = G.node
  	type edge = G.edge
  	type path = S.path
@@ -173,8 +144,17 @@ module FlowNetworkMaker (G : Graph)
  	let max_flow (g : graph) : flow = 
  		let rec helper (f : flow) (gf : graph) : flow = 
  			match S.find_path gf with 
- 			| None -> f
- 			| Some p -> let delta = min_capacity gf p in
+ 			| Right _ -> f
+ 			| Left p -> let delta = min_capacity gf p in
+ 						let gf' = update_flow_network gf delta p in
+	 					helper (update_flow f p delta) gf' in
+ 		G.copy g |> helper (Hashtbl.create (G.size g))
+
+ 	let min_cut (g : graph) : node list = 
+ 		let rec helper (f : flow) (gf : graph) : node list = 
+ 			match S.find_path gf with 
+ 			| Right l -> l
+ 			| Left p -> let delta = min_capacity gf p in
  						let gf' = update_flow_network gf delta p in
 	 					helper (update_flow f p delta) gf' in
  		G.copy g |> helper (Hashtbl.create (G.size g))
