@@ -153,7 +153,7 @@ let print_cmd (c: cmd) : string =
 		| Slh -> "protect_slh"
 		| Fence -> "protect_fence"
 		| Auto -> "protect"
-		in Printf.sprintf "%s = %s(%s)" i prot_type (helper_rhs r)
+		in Printf.sprintf "%s := %s(%s)" i prot_type (helper_rhs r)
 	in helper_cmd c
 
 type node_type =
