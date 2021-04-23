@@ -142,9 +142,9 @@ let print_cmd (c: cmd) : string =
 	in let rec helper_cmd (c: cmd) : string = match c with
 	| Skip -> "skip"
 	| Fail -> "fail"
-	| VarAssign (i, r) -> Printf.sprintf "%s = %s" i (helper_rhs r)
-	| PtrAssign (e1, e2) -> Printf.sprintf "*(%s) = %s" (helper_expr e1) (helper_expr e2)
-	| ArrAssign (i, e1, e2) -> Printf.sprintf "%s(%s) = %s" i (helper_expr e1) (helper_expr e2)
+	| VarAssign (i, r) -> Printf.sprintf "%s := %s" i (helper_rhs r)
+	| PtrAssign (e1, e2) -> Printf.sprintf "*(%s) := %s" (helper_expr e1) (helper_expr e2)
+	| ArrAssign (i, e1, e2) -> Printf.sprintf "%s(%s) := %s" i (helper_expr e1) (helper_expr e2)
 	| Seq (c1, c2) -> Printf.sprintf "%s;\n%s" (helper_cmd c1) (helper_cmd c2)
 	| If (e, c1, c2) -> Printf.sprintf "if %s then\n%s\nelse\n%s\nendif" (helper_expr e) (helper_cmd c1) (helper_cmd c2)
 	| While (e, c) -> Printf.sprintf "while %s do\n%s\nendwhile" (helper_expr e) (helper_cmd c)
