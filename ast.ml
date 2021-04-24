@@ -393,8 +393,10 @@ let rec eval conf map attacker trace counter =
       match dir with
       | Fetch -> (conf, trace, counter)
       | PFetch(p) -> (conf, trace, counter)
-      | Exec(n) -> (conf, trace, counter)
-      | Retire -> (conf, trace, counter) 
+      | Exec(n) -> let (conf, obs) = eval_exec n in
+        eval conf map attacker (trace @ [obs]) (counter+1)
+      | Retire -> let (conf, obs) = eval_retire in 
+        eval conf map attacker (trace @ [obs]) (counter+1)
     )
 
 let print_cmd (c: cmd) : string =
