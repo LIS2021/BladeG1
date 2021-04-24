@@ -654,4 +654,3 @@ let _ =
   | Some c -> Printf.printf "%s\n\n\n" (print_cmd c);
     let c' = blade c in
     Printf.printf "%s\n" (print_cmd c')
-    >>>>>>> 97c638144f0d457ef97df8aa8ae3dac12d1aaadc
