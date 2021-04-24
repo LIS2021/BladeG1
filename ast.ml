@@ -227,12 +227,23 @@ let rec eval conf map attacker trace counter =
           )
         | _ -> failwith "Direttiva non valida!"
       in
-      (**TODO: - valutare il cambio del tipo della rho
-         - valutare la necessità di un tipp puntatore
-         - eval_expr, trvr_map,
-         - in trvar_map iprotect
+      (** TODO: - valutare il cambio del tipo della rho
+          - valutare la necessità di un tipp puntatore
+          - eval_expr, trvr_map,
+          - in trvar_map iprotect
       *)
-      let rec eval_exec n = 
+      (** Execute rule implementation
+          @param n the n-th instruction to execute
+          @return (conf,obs) the resulting configuration and the observable created 
+      *)
+      let rec eval_exec n =
+
+        (** Evaluation of expressions
+            @param e    the expression
+            @param rho  the environment 
+            @param map  map of declared variables
+            @return value the value of the expression
+        *)
         let rec eval_expr e rho map = 
           match e with
           | CstI(i)           -> Ival(i)
@@ -262,6 +273,14 @@ let rec eval conf map attacker trace counter =
                                   |Some(TypA(b,l)) -> Ival(b)
                                   |_ -> failwith "Invalid type for base") 
         in
+
+        (** Transient variable map implementation
+            @param is   instruction list
+            @param is1  instruction list accumulator
+            @param rho  environment
+            @param n    the counter for the updates of rho
+            @return ((is1,i,is2),rho)  the splitted instruction list and the updated environment
+        *)
         let rec trvar_map is is1 rho n =
           match (n,is) with
           | (1, x::xs) -> ((is1, x, xs),rho)
@@ -274,24 +293,48 @@ let rec eval conf map attacker trace counter =
               |_                    -> trvar_map xs (is1 @ [x]) rho (n-1))
           | _ -> failwith "Invalid directive"
         in
+
+        (** Predicate for instruction
+            @param is       instruction
+            @return boolean true if the instruction is a Store, false otherwise 
+        *)
         let predStore is =
           match is with
           |StoreE(_,_) -> true
           |StoreV(_,_) -> true
           |_          -> false 
         in
+
+        (** Predicate for instruction
+            @param is       instruction
+            @return boolean true if the instruction is a Guard, false otherwise 
+        *)
         let predGuard is =
           match is with
           |Guard(_,_,_,_) -> true
           |_              -> false
         in
+
+        (** Pending fail and guard identifiers creation.
+            @param is  instruction list
+            @return xs the list of identifiers 
+        *)
         let rec pending is =
           match is with
           |[]                 -> []
           |Guard(_,_,_,p)::xs -> p :: pending xs
           |Fail(p)::xs        -> p::  pending xs
           |x::xs              -> pending xs
-        in 
+        in
+
+        (** Execute stage
+            @param is1  instructions before the one to execute
+            @param is   instuction to execute
+            @param is2  instructions after the one to execute
+            @param cs   command list 
+            @param rho' the updated environment
+            @return (is,cs,obs)  the new instruction list, the new command list and the observable
+        *) 
         let execute is1 is is2 cs rho' =
           match is with
           |AssignE(id,e)          -> (let v = eval_expr e rho' map in
@@ -331,6 +374,9 @@ let rec eval conf map attacker trace counter =
         ({is = ilst; cs = cs; mu = conf.mu;  rho = conf.rho}, obs)
       in 
 
+      (** Retire rule implementation
+          @return (conf,obs) the resulting configuration and the observable created
+      *)
       let rec eval_retire = 
         match istr with
         | Nop                       -> ({ conf with is = List.tl conf.is }, None)
