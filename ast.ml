@@ -333,7 +333,15 @@ let rec eval conf map attacker trace counter =
 
       let rec eval_retire = 
         match istr with
-        | _ -> ()
+        | Nop                       -> ({ conf with is = List.tl conf.is }, None)
+        | AssignV (id, Ival v)      -> (let rho' = StringMap.add id v conf.rho in
+                                        let c' = {is = List.tl conf.is; cs = conf.cs; mu = conf.mu; rho = rho'} in
+                                        (c', None))
+        | StoreV (Ival v1, Ival v2) -> (Array.set conf.mu v1 v2;
+                                      let c' = {is = List.tl conf.is; cs = conf.cs; mu = conf.mu; rho = conf.rho} in
+                                      (c', None))
+        | Fail (i)                  -> ({is = []; cs = []; mu = conf.mu; rho = conf.rho}, Fail(i))
+        | _                         -> failwith "Invalid directive"
       in
 
       match dir with
