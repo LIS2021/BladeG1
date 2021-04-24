@@ -328,7 +328,7 @@ let rec eval conf map attacker trace counter =
         in 
         let ((is1, i, is2),rho) = trvar_map conf.is [] conf.rho n in
         let (ilst, cs, obs) = execute is1 i is2 conf.cs rho in
-        eval {is = ilst; cs = cs; mu = conf.mu;  rho = conf.rho} map attacker (trace @ [obs]) (counter+1)
+        ({is = ilst; cs = cs; mu = conf.mu;  rho = conf.rho}, obs)
       in 
 
       let rec eval_retire = 
@@ -338,8 +338,8 @@ let rec eval conf map attacker trace counter =
                                         let c' = {is = List.tl conf.is; cs = conf.cs; mu = conf.mu; rho = rho'} in
                                         (c', None))
         | StoreV (Ival v1, Ival v2) -> (Array.set conf.mu v1 v2;
-                                      let c' = {is = List.tl conf.is; cs = conf.cs; mu = conf.mu; rho = conf.rho} in
-                                      (c', None))
+                                        let c' = {is = List.tl conf.is; cs = conf.cs; mu = conf.mu; rho = conf.rho} in
+                                        (c', None))
         | Fail (i)                  -> ({is = []; cs = []; mu = conf.mu; rho = conf.rho}, Fail(i))
         | _                         -> failwith "Invalid directive"
       in
