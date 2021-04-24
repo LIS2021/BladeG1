@@ -1,4 +1,5 @@
 _build
+docs
 *.native
 *.cmi
 *.cmo
