@@ -263,26 +263,26 @@ type node_type =
   | VarN of string
 
 type 'n cmd_node =
-  | Skip
-  | Fail
-  | VarAssign of identifier * rhs * 'n * 'n
-  | PtrAssign of expr * expr
-  | ArrAssign of identifier * expr * expr
-  | Seq of 'n cmd_node * 'n cmd_node
-  | If of expr * 'n cmd_node * 'n cmd_node
-  | While of expr * 'n cmd_node
-  | Protect of identifier * protect * rhs
+  | SkipN
+  | FailN
+  | VarAssignN of identifier * rhs * 'n * 'n
+  | PtrAssignN of expr * expr
+  | ArrAssignN of identifier * expr * expr
+  | SeqN of 'n cmd_node * 'n cmd_node
+  | IfN of expr * 'n cmd_node * 'n cmd_node
+  | WhileN of expr * 'n cmd_node
+  | ProtectN of identifier * protect * rhs
 
 let rec strip_nodes (c: 'n cmd_node) : (cmd) = match c with
-  | Skip -> Skip
-  | Fail -> Fail
-  | VarAssign (i, r, _, _) -> VarAssign(i, r)
-  | PtrAssign (e1, e2) -> PtrAssign (e1, e2)
-  | ArrAssign (i, e1, e2) -> ArrAssign (i, e1, e2)
-  | Seq (c1, c2) ->  Seq (strip_nodes c1, strip_nodes c2)
-  | If (e, c1, c2) -> If (e, strip_nodes c1, strip_nodes c2)
-  | While (e, c) -> While (e, strip_nodes c)
-  | Protect (i, p, r) -> Protect (i, p, r)
+  | SkipN -> Skip
+  | FailN -> Fail
+  | VarAssignN (i, r, _, _) -> VarAssign(i, r)
+  | PtrAssignN (e1, e2) -> PtrAssign (e1, e2)
+  | ArrAssignN (i, e1, e2) -> ArrAssign (i, e1, e2)
+  | SeqN (c1, c2) ->  Seq (strip_nodes c1, strip_nodes c2)
+  | IfN (e, c1, c2) -> If (e, strip_nodes c1, strip_nodes c2)
+  | WhileN (e, c) -> While (e, strip_nodes c)
+  | ProtectN (i, p, r) -> Protect (i, p, r)
 
 open Graph
 open Flow_network
@@ -337,57 +337,57 @@ let rec blade c =
        | Seq (c1, c2) ->
          let g, c1' = defuse_cmd c1 g depth in
          let g, c2' = defuse_cmd c2 g depth in
-         (g, Seq(c1', c2'))
+         (g, SeqN(c1', c2'))
        | If (e, c1, c2) ->
          let g, enode = defuse_expr e g depth in
          let g, c1' = defuse_cmd c1 g depth in
          let g, c2' = defuse_cmd c2 g depth in
          let g = G.connect g (enode, sink) max_int in
-         (g, If(e, c1', c2'))
+         (g, IfN(e, c1', c2'))
        | While (e, body) ->
          let (g, enode) = defuse_expr e g depth in
          let g, body' = defuse_cmd body g (depth + 1) in
          let g = G.connect g (enode, sink) max_int in
-         (g, While (e, body'))
+         (g, WhileN (e, body'))
        | VarAssign (name, r) ->
          let (g, varnode) = create_node (VarN name) g in
          let (g, rnode) = defuse_rhs r g depth in
          let g = G.connect g (varnode, rnode) 1 in
-         (g, VarAssign (name, r, varnode, rnode))
+         (g, VarAssignN (name, r, varnode, rnode))
        | PtrAssign (e1, e2) ->
          let (g, n1) = defuse_expr e1 g depth in
          let (g, n2) = defuse_expr e2 g depth in
          let g = G.connect g (n1, sink) max_int in
-         (g, PtrAssign (e1, e2))
+         (g, PtrAssignN (e1, e2))
        | ArrAssign (i, e1, e2) ->
          let (g, n1) = defuse_expr e1 g depth in
          let (g, n2) = defuse_expr e2 g depth in
          let g = G.connect g (n1, sink) max_int in
-         (g, ArrAssign(i, e1, e2))
+         (g, ArrAssignN(i, e1, e2))
        | Protect (name, prot, r) -> 
          let (g, n) = defuse_rhs r g depth in
-         (g, Protect(name, prot, r))
-       | Skip -> (g, Skip)
-       | Fail -> (g, Fail)
+         (g, ProtectN(name, prot, r))
+       | Skip -> (g, SkipN)
+       | Fail -> (g, FailN)
   in let defuse_graph, annotated_cmd = defuse_cmd c (G.empty ()) 0
   in let min_cut = N.min_cut defuse_graph
   in let rec repair_cmd (c: G.node cmd_node) : G.node cmd_node =
        match c with
-       | Skip -> Skip
-       | Fail -> Fail
-       | VarAssign (i, r, ni, nr) ->
-         let ni_in_cut = List.exists (fun x -> x = ni) min_cut in
-         let nr_in_cut = List.exists (fun x -> x = nr) min_cut in
+       | SkipN -> SkipN
+       | FailN -> FailN
+       | VarAssignN (i, r, ni, nr) ->
+         let ni_in_cut = List.mem ni min_cut in
+         let nr_in_cut = List.mem nr min_cut in
          (match (ni_in_cut, nr_in_cut) with
-          | false, true -> Protect (i, Auto, r)
+          | false, true -> ProtectN (i, Auto, r)
           | true, false -> failwith "Invalid graph!"
-          | _ -> VarAssign(i, r, ni, nr))
-       | PtrAssign (e1, e2) -> PtrAssign (e1, e2)
-       | ArrAssign (i, e1, e2) -> ArrAssign (i, e1, e2)
-       | Seq (c1, c2) ->  Seq (repair_cmd c1, repair_cmd c2)
-       | If (e, c1, c2) -> If (e, repair_cmd c1, repair_cmd c2)
-       | While (e, c) -> While (e, repair_cmd c)
-       | Protect (i, p, r) -> Protect (i, p, r)
+          | _ -> VarAssignN(i, r, ni, nr))
+       | PtrAssignN (e1, e2) -> PtrAssignN (e1, e2)
+       | ArrAssignN (i, e1, e2) -> ArrAssignN (i, e1, e2)
+       | SeqN (c1, c2) ->  SeqN (repair_cmd c1, repair_cmd c2)
+       | IfN (e, c1, c2) -> IfN (e, repair_cmd c1, repair_cmd c2)
+       | WhileN (e, c) -> WhileN (e, repair_cmd c)
+       | ProtectN (i, p, r) -> ProtectN (i, p, r)
 
   in repair_cmd annotated_cmd |> strip_nodes
 
