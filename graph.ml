@@ -1,64 +1,65 @@
-(* Module type for accessing nodes and edges in a graph 
-   Abstracted this way to allow easy swapping in and out 
-   of implementations *)
+(** Module type for accessing nodes and edges in a graph 
+    Abstracted this way to allow easy swapping in and out 
+    of implementations *)
 module type Graph = sig
   (* types *)
   type node
   type 'a graph
   type edge = node * node
 
-  (* Creates an empty graph, with an unconnected source and sink *)
+  (** Creates an empty graph, with an unconnected source and sink *)
   val empty : unit -> 'a graph
 
-  (* Creates a new unconnected node in the graph *)
+  (** Creates a new unconnected node in the graph *)
   val add_node : 'a graph -> 'a -> ('a graph * node)
 
-  (* Connects node1 to node2 with capacity int in graph *)
+  (** Connects node1 to node2 with capacity int in graph *)
   val connect : 'a graph -> edge -> int -> 'a graph
 
-  (* Disconnects node1 to node2 in graph *)
+  (** Disconnects node1 to node2 in graph *)
   val disconnect : 'a graph -> edge -> 'a graph
 
-  (* Returns the capacity of the edge from node 1 to node 2 in graph. 
-     	   Is 0 if the edge does not exist *)
+  (** Returns the capacity of the edge from node 1 to node 2 in graph. 
+      Is 0 if the edge does not exist *)
   val capacity : 'a graph -> edge -> int 
 
-  (* Returns a list of neighbors and their edge capacities of node in graph *)
+  (** Returns a list of neighbors and their edge capacities of node in graph *)
   val neighbors : 'a graph -> node -> (node * int) list
 
-  (* Returns a list of outgoing edges from a node *)
+  (** Returns a list of outgoing edges from a node *)
   val outgoing : 'a graph -> node -> edge list
 
-  (* Number of nodes in the graph *)
+  (** Number of nodes in the graph *)
   val size : 'a graph -> int
 
-  (* Returns the source *)
+  (** Returns the source *)
   val source : 'a graph -> node
 
-  (* Returns the sink *)
+  (** Returns the sink *)
   val sink : 'a graph -> node
 
-  (* Returns a list of the nodes in the graph *)
+  (** Returns a list of the nodes in the graph *)
   val nodes : 'a graph -> node list
 
-  (* Prints the graph *)
+  (** Prints the graph *)
   val print : 'a graph -> unit
 
-  (* Print node *)
+  (** Print node *)
   val print_node : node -> unit
 
-  (* Copies the graph *)
+  (** Copies the graph *)
   val copy : 'a graph -> 'a graph
 
-  (* Returns the contents of a node (None if source or sink) *)
+  (** Returns the contents of a node (None if source or sink) *)
   val contents : 'a graph -> node -> 'a option
 
+  (** Disconnects nodes from their neighbors *)
   val disconnect_nodes: 'a graph -> node list -> 'a graph
 end 
 
-(* Graph representation as an matrix:
-   Value [n] at position [i],[j] means that
-   capacity on edge (i,j) is n    *)
+(** Graph representation as an matrix:
+    Value [n] at position [i],[j] means that
+    capacity on edge (i,j) is n *)
 module MatrixGraph : Graph = struct
   type node = int
   type 'a matrix = 'a array array 

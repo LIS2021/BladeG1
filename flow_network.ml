@@ -1,22 +1,4 @@
-module type Graph = sig
-  type node
-  type 'a graph
-  type edge = node * node
-  val empty : unit -> 'a graph
-  val add_node : 'a graph -> 'a -> ('a graph * node)
-  val connect : 'a graph -> edge -> int -> 'a graph
-  val disconnect : 'a graph -> edge -> 'a graph
-  val capacity : 'a graph -> edge -> int 
-  val neighbors : 'a graph -> node -> (node * int) list
-  val outgoing : 'a graph -> node -> edge list
-  val size : 'a graph -> int
-  val source : 'a graph -> node
-  val sink : 'a graph -> node
-  val nodes : 'a graph -> node list
-  val print : 'a graph -> unit
-  val print_node : node -> unit
-  val copy : 'a graph -> 'a graph
-end 
+open Graph
 
 type ('a, 'b) either =
   | Left of 'a
@@ -40,8 +22,8 @@ module type PathSearch = sig
   val find_path : 'a graph -> node -> (path, node list) either
 end 
 
-(* Implements BFS as a path finding procedure. This makes the max flow
-   algorithm the Edmonds-Karp algorithm *)
+(** Implements BFS as a path finding procedure. This makes the max flow
+    algorithm the Edmonds-Karp algorithm *)
 module BFS (G : Graph) : PathSearch with type path = G.edge list and type node = G.node and type 'a graph = 'a G.graph = struct
   type 'a graph = 'a G.graph
   type node = G.node
