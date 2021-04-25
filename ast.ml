@@ -101,8 +101,57 @@ let make_fresh_var() =
   let num = fresh_var() in
   new_var^(string_of_int num)
 
-let rec eval conf map attacker trace counter =
+(** Evaluation of expressions
+            @param e    the expression
+            @param rho  the environment 
+            @param map  map of declared variables
+            @return value the value of the expression
+*)
+let rec eval_expr e rho map = 
+  match e with
+  | CstI(i)           -> Ival(i)
+  | Var(id)           -> (let id1 = StringMap.find_opt id rho in
+                          let id2 = StringMap.find_opt id map in
+                          match (id1, id2) with
+                          |(_,Some(TypA(b,l))) -> Aval(b,l)
+                          |(Some(x),_)   -> Ival(x)
+                          |(_,_) -> failwith "Identifier not declared" )             
+  | BinOp(e1,e2,op)   -> (let e1' = eval_expr e1 rho map in
+                          let e2' = eval_expr e2 rho map in          
+                          match (op,e1',e2') with
+                          |("+", Ival(x), Ival(y)) -> Ival(x + y)
+                          |("<", Ival(x), Ival(y)) -> Ival(Bool.to_int(x < y))
+                          |("*", Ival(x), Ival(y)) -> Ival(x land y)
+                          |_ -> failwith "Invalid type for binary operation")
+  | InlineIf(e,e1,e2) -> (let e' = eval_expr e rho map in
+                          match e' with
+                          |Ival(b) -> if b == 1 then eval_expr e1 rho map else eval_expr e2 rho map
+                          |_       -> failwith "Invalid type for guard")
+  | Length(a)         -> (let t = StringMap.find_opt a map in
+                          match t with
+                          |Some(TypA(b,l)) -> Ival(l)
+                          |_ -> failwith "Invalid type for lenght")
+  | Base(a)           -> (let t = StringMap.find_opt a map in
+                          match t with
+                          |Some(TypA(b,l)) -> Ival(b)
+                          |_ -> failwith "Invalid type for base")
 
+let speculator map = 
+  fun conf ->
+  match (conf.is, conf.cs) with
+  | (_, (If(e,c1,c2))::xs)  -> 
+    (match eval_expr e conf.rho map with
+     |Ival(b) -> if (b = 0) then PFetch(true) else PFetch(false) 
+     |_       -> failwith "Invalid type for guard")
+  | (Nop::is,_)
+  | (AssignV(_,_)::is,_)
+  | (StoreV(_,_)::is,_)
+  | (Fail(_)::is,_)         -> Retire
+  | (i::is, _)              -> Exec(1)
+  | (_, x::xs)              -> Fetch
+  |_ -> failwith "Invalid configuration"
+
+let rec eval conf map attacker trace counter =
   match (conf.is, conf.cs) with
   | ([], []) -> (conf, trace, counter)
   | _ ->
@@ -238,42 +287,6 @@ let rec eval conf map attacker trace counter =
       *)
       let rec eval_exec n =
 
-        (** Evaluation of expressions
-            @param e    the expression
-            @param rho  the environment 
-            @param map  map of declared variables
-            @return value the value of the expression
-        *)
-        let rec eval_expr e rho map = 
-          match e with
-          | CstI(i)           -> Ival(i)
-          | Var(id)           -> (let id1 = StringMap.find_opt id rho in
-                                  let id2 = StringMap.find_opt id map in
-                                  match (id1, id2) with
-                                  |(_,Some(TypA(b,l))) -> Aval(b,l)
-                                  |(Some(x),_)   -> Ival(x)
-                                  |(_,_) -> failwith "Identifier not declared" )             
-          | BinOp(e1,e2,op)   -> (let e1' = eval_expr e1 rho map in
-                                  let e2' = eval_expr e2 rho map in          
-                                  match (op,e1',e2') with
-                                  |("+", Ival(x), Ival(y)) -> Ival(x + y)
-                                  |("<", Ival(x), Ival(y)) -> Ival(Bool.to_int(x < y))
-                                  |("*", Ival(x), Ival(y)) -> Ival(x land y)
-                                  |_ -> failwith "Invalid type for binary operation")
-          | InlineIf(e,e1,e2) -> (let e' = eval_expr e rho map in
-                                  match e' with
-                                  |Ival(b) -> if b == 1 then eval_expr e1 rho map else eval_expr e2 rho map
-                                  |_       -> failwith "Invalid type for guard")
-          | Length(a)         -> (let t = StringMap.find_opt a map in
-                                  match t with
-                                  |Some(TypA(b,l)) -> Ival(l)
-                                  |_ -> failwith "Invalid type for lenght")
-          | Base(a)           -> (let t = StringMap.find_opt a map in
-                                  match t with
-                                  |Some(TypA(b,l)) -> Ival(b)
-                                  |_ -> failwith "Invalid type for base") 
-        in
-
         (** Transient variable map implementation
             @param is   instruction list
             @param is1  instruction list accumulator
@@ -391,8 +404,10 @@ let rec eval conf map attacker trace counter =
       in
 
       match dir with
-      | Fetch -> (conf, trace, counter)
-      | PFetch(p) -> (conf, trace, counter)
+      | Fetch -> let conf = eval_fetch in 
+        eval conf map attacker (trace @ [None]) (counter+1)
+      | PFetch(p) -> let conf = eval_pfetch p in 
+        eval conf map attacker (trace @ [None]) (counter+1)
       | Exec(n) -> let (conf, obs) = eval_exec n in
         eval conf map attacker (trace @ [obs]) (counter+1)
       | Retire -> let (conf, obs) = eval_retire in 
