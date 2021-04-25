@@ -1,11 +1,12 @@
 PKGS=opal
+SRCS=graph.ml flow_network.ml ast.ml eval.ml util.ml blade.ml parser.ml main.ml
 
 .PHONY: docs clean
 
-main.native: ast.ml eval.ml util.ml blade.ml parser.ml graph.ml flow_network.ml main.ml
+main.native: $(SRCS)
 	ocamlbuild -pkgs '${PKGS}' main.native
 
-docs: graph.ml flow_network.ml ast.ml eval.ml parser.ml blade.ml util.ml main.ml
+docs: $(SRCS)
 	mkdir -p docs
 	ocamlfind ocamlc -linkpkg -package opal $^
 	ocamlfind ocamldoc -html -d docs -package opal $^
