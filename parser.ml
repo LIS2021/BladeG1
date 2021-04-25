@@ -24,7 +24,7 @@ let parse stream =
 
   in let number = spaces >> many1 digit => implode % (fun x -> CstI (int_of_string x))
 
-  in let parse_op = token "+" <|> token "<"
+  in let parse_op = token "+" <|> token "<" <|> token "*"
   in let rec parse_value input =
        (number <|> parse_var) input
   and parse_expr input = (parse_length
