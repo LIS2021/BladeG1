@@ -344,15 +344,15 @@ let rec eval conf map attacker trace counter =
     )
 
 let rec print_expr (e: expr) : string = match e with
-    | CstI i -> Printf.sprintf "%d" i
-    | Var n -> n
+  | CstI i -> Printf.sprintf "%d" i
+  | Var n -> n
   | BinOp (e1, e2, op) -> Printf.sprintf "(%s %s %s)" (print_expr e1) op (print_expr e2)
-    | InlineIf (e1, e2, e3) ->
+  | InlineIf (e1, e2, e3) ->
     let s1 = print_expr e1 in
     let s2 = print_expr e2 in
     let s3 = print_expr e3 in Printf.sprintf "(%s ? %s : %s)" s1 s2 s3
-    | Length i -> Printf.sprintf "length(%s)" i
-    | Base i -> Printf.sprintf "base(%s)" i
+  | Length i -> Printf.sprintf "length(%s)" i
+  | Base i -> Printf.sprintf "base(%s)" i
 
 
 let print_rhs (r: rhs) : string = match r with
@@ -362,19 +362,19 @@ let print_rhs (r: rhs) : string = match r with
 
 let print_cmd (c: cmd) : string =
   let rec helper_cmd (c: cmd) : string = match c with
-      | Skip -> "skip"
-      | Fail -> "fail"
+    | Skip -> "skip"
+    | Fail -> "fail"
     | VarAssign (i, r) -> Printf.sprintf "%s := %s" i (print_rhs r)
     | PtrAssign (e1, e2) -> Printf.sprintf "*(%s) := %s" (print_expr e1) (print_expr e2)
     | ArrAssign (i, e1, e2) -> Printf.sprintf "%s(%s) := %s" i (print_expr e1) (print_expr e2)
-      | Seq (c1, c2) -> Printf.sprintf "%s;\n%s" (helper_cmd c1) (helper_cmd c2)
+    | Seq (c1, c2) -> Printf.sprintf "%s;\n%s" (helper_cmd c1) (helper_cmd c2)
     | If (e, c1, c2) -> Printf.sprintf "if %s then\n%s\nelse\n%s\nendif" (print_expr e) (helper_cmd c1) (helper_cmd c2)
     | While (e, c) -> Printf.sprintf "while %s do\n%s\nendwhile" (print_expr e) (helper_cmd c)
-      | Protect (i, p, r) ->
-        let prot_type = match p with
-          | Slh -> "protect_slh"
-          | Fence -> "protect_fence"
-          | Auto -> "protect"
+    | Protect (i, p, r) ->
+      let prot_type = match p with
+        | Slh -> "protect_slh"
+        | Fence -> "protect_fence"
+        | Auto -> "protect"
       in Printf.sprintf "%s := %s(%s)" i prot_type (print_rhs r)
   in helper_cmd c
 
@@ -413,15 +413,21 @@ let rec blade c =
   let module S = BFS(G) in
   let module N = FlowNetworkMaker (G) (S) in
   let var_nodes = Hashtbl.create 10 in
-  let create_node (n: node_type) (g: node_type G.graph) : (node_type G.graph * G.node) =
-    match Hashtbl.find_opt var_nodes n with
-    | Some node -> (g, node)
-    | None ->
-      let (g, node) = G.add_node g n in
-      Hashtbl.add var_nodes n node;
-      (g, node)
+  let can_reach_sink g n = match (S.find_path g n) with
+    | Left _ -> true
+    | Right _ -> false
+  in let create_node (n: node_type) (g: node_type G.graph) : (node_type G.graph * G.node) =
+       match Hashtbl.find_opt var_nodes n with
+       | Some node -> (g, node)
+       | None ->
+         let (g, node) = G.add_node g n in
+         Hashtbl.add var_nodes n node;
+         (g, node)
   in let rec defuse_expr (e: expr) (g: node_type G.graph) (depth: int): (node_type G.graph * G.node) =
-       let (g, new_node) = create_node (ExprN e) g in
+       let ntype = match e with
+         |Var name -> VarN name
+         | _ -> ExprN e
+       in let (g, new_node) = create_node ntype g in
        match e with
        | BinOp (e1, e2, op) ->
          let (g, n1) = defuse_expr e1 g depth in
@@ -439,14 +445,17 @@ let rec blade c =
   in let defuse_rhs (r: rhs) (g: node_type G.graph) (depth: int): (node_type G.graph * G.node) =
        let source = G.source g in
        let sink = G.sink g in
-       let (g, new_node) = create_node (RhsN r) g in
+       let ntype = match r with
+         | Expr e -> ExprN e
+         | _ -> RhsN r
+       in let (g, new_node) = create_node ntype g in
        match r with
        | Expr e -> defuse_expr e g depth
        | ArrayRead (i, e) ->
          let (g, expr_node) = defuse_expr e g depth in
          let g = G.connect g (expr_node, sink) max_int in
          let g = G.connect g (source, new_node) max_int in
-         let g = G.connect g (expr_node, new_node) max_int in (g, new_node)
+         (g, new_node)
        | PtrRead e ->
          let (g, expr_node) = defuse_expr e g depth in
          let g = G.connect g (expr_node, sink) max_int in
@@ -473,7 +482,7 @@ let rec blade c =
        | VarAssign (name, r) ->
          let (g, varnode) = create_node (VarN name) g in
          let (g, rnode) = defuse_rhs r g depth in
-         let g = G.connect g (varnode, rnode) 1 in
+         let g = G.connect g (rnode, varnode) 1 in
          (g, VarAssignN (name, r, varnode, rnode))
        | PtrAssign (e1, e2) ->
          let (g, n1) = defuse_expr e1 g depth in
@@ -492,6 +501,7 @@ let rec blade c =
        | Fail -> (g, FailN)
   in let defuse_graph, annotated_cmd = defuse_cmd c (G.empty ()) 0
   in let min_cut = N.min_cut defuse_graph
+  in let residual_graph = G.disconnect_nodes defuse_graph min_cut
   in let rec repair_cmd (c: G.node cmd_node) : G.node cmd_node =
        match c with
        | SkipN -> SkipN
@@ -499,8 +509,9 @@ let rec blade c =
        | VarAssignN (i, r, ni, nr) ->
          let ni_in_cut = List.mem ni min_cut in
          let nr_in_cut = List.mem nr min_cut in
+         let reachable = can_reach_sink residual_graph ni in
          (match (ni_in_cut, nr_in_cut) with
-          | false, true -> ProtectN (i, Auto, r)
+          | false, true when reachable -> ProtectN (i, Auto, r)
           | true, false -> failwith "Invalid graph!"
           | _ -> VarAssignN(i, r, ni, nr))
        | PtrAssignN (e1, e2) -> PtrAssignN (e1, e2)
