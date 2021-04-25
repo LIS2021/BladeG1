@@ -133,66 +133,82 @@ let rec eval conf map attacker trace counter =
       let c = List.hd conf.cs in
 
       let istr = List.hd conf.is in
-
+      (**
+         This function executes a fetch step (previously given as directive by the attacker) on the next command [c].
+         This stage is executed according to a given rule system, described by the Blade paper.   
+         @return the new configuration after a fetch step
+      *)
       let rec eval_fetch = 
         match c with
+        (* FETCH-SKIP rule *)
         | Skip -> 
           (
             let ls = List.append conf.is [Nop] in
             let cs_t = List.tl conf.cs in
             {is=ls; cs=cs_t; mu=conf.mu; rho=conf.rho}
           ) 
+        (* FETCH-FAIL rule *)
         | Fail -> 
           (
             let ls = List.append conf.is [Fail(fresh())] in
             let cs_t = List.tl conf.cs in
             {is=ls; cs=cs_t; mu=conf.mu; rho=conf.rho}
           )
+        (* this type-constructor could correspond to more cases *)
         | VarAssign(id, rh) -> 
           (
             match rh with
+            (* FETCH-ASGN rule *)
             | Expr(e) ->
               (
                 let ls = List.append conf.is [AssignE(id, e)] in
                 let cs_t = List.tl conf.cs in
                 {is=ls; cs=cs_t; mu=conf.mu; rho=conf.rho}
               )
+            (* FETCH-PTR-LOAD rule *)
             | PtrRead(e) ->
               (
                 let ls = List.append conf.is [Load(id, e)] in
                 let cs_t = List.tl conf.cs in
                 {is=ls; cs=cs_t; mu=conf.mu; rho=conf.rho}
               )
+            (* FETCH-ARRAY-LOAD rule *)
             | ArrayRead(id_arr, e) ->
               ( 
                 let g = BinOp(e, Length(id_arr), "<") in
                 let rhs_new = Expr(BinOp(Base(id_arr), e, "+")) in
                 let asgn_new = VarAssign(id, rhs_new) in
+                (* if(e < length(id_arr)) then id := ptr(base(id_arr) + e) else fail *)
                 let cmd_new = If(g, asgn_new, Fail) in
                 let cs_t = List.tl conf.cs in
                 {is=conf.is; cs=cmd_new::cs_t; mu=conf.mu; rho=conf.rho}
               )
           )
+        (* FETCH-PTR-STORE rule *)
         | PtrAssign(e1, e2) -> 
           (
             let ls = List.append conf.is [StoreE(e1, e2)] in
             let cs_t = List.tl conf.cs in
             {is=ls; cs=cs_t; mu=conf.mu; rho=conf.rho}    
           )
+        (* FETCH-ARRAY-STORE rule *)
         | ArrAssign(id, e1, e2) -> 
           (
             let g = BinOp(e1, Length(id), "<") in
             let lhs_new = BinOp(Base(id), e1, "+") in
             let asgn_new = PtrAssign(lhs_new, e2) in
+            (* if(e1 < length(id_arr)) then ptr(base(id_arr) + e1) := e2 else fail *)
             let cmd_new = If(g, asgn_new, Fail) in
             let cs_t = List.tl conf.cs in
             {is=conf.is; cs=cmd_new::cs_t; mu=conf.mu; rho=conf.rho}
           )
+        (* FETCH-SEQ rule *)
         | Seq(c1, c2) -> 
           (
             let cs_t = List.tl conf.cs in
             {is=conf.is; cs=c1::c2::cs_t; mu=conf.mu; rho=conf.rho}
           )
+        (* FETCH-WHILE rule *)
         | While(g, cm) -> 
           (
             let cs_t = List.tl conf.cs in
@@ -200,15 +216,18 @@ let rec eval conf map attacker trace counter =
             let w_unrolled = If(g, cm_seq, Skip) in
             {is=conf.is; cs=w_unrolled::cs_t; mu=conf.mu; rho=conf.rho}
           )
+        (* this type-constructor could corresponde to more cases *)
         | Protect(id, pct, rhs) ->
           (
             match rhs with
+            (* FETCH-PROTECT-EXPR rule *)
             | Expr(e) -> 
               (
                 let ls = List.append conf.is [IProtectE(id, pct, e)] in 
                 let cs_t = List.tl conf.cs in
                 {is=ls; cs=cs_t; mu=conf.mu; rho=conf.rho}
               )
+            (* FETCH-PROTECT-SLH rule *)
             | ArrayRead(id_arr, e) when pct=Slh ->
               (
                 let g = BinOp(e, Length(id), "<") in
@@ -223,6 +242,7 @@ let rec eval conf map attacker trace counter =
                 let cs_t = List.tl conf.cs in
                 {is=conf.is; cs=cmd_new::cs_t; mu=conf.mu; rho=conf.rho}
               ) 
+            (* FETCH-PROTECT-ARRAY & FETCH-PROTECT-PTR (premises in the two rules are the same) *)
             | _ -> 
               (
                 let id_new = id^"'" in
@@ -236,14 +256,23 @@ let rec eval conf map attacker trace counter =
 
       in
 
+      (** 
+         This function execute a fetch step with branch predictor (previously given as directive by the attacker) on the next command [c]. 
+         @return the new configuration after a fetch(p) step
+         @param p the prediction done when fetching the if statement   
+      *)
       let rec eval_pfetch p = 
         match c with
         | If(g, c1, c2) ->
           (
             let cs_t = List.tl conf.cs in
-            if p then let ls = List.append conf.is [Guard(g, p, c2::cs_t, fresh())] in
+            if p then 
+              (* FETCH-IF-TRUE rule *)
+              let ls = List.append conf.is [Guard(g, p, c2::cs_t, fresh())] in
               {is=ls; cs=c1::cs_t; mu=conf.mu; rho=conf.rho}
-            else let ls = List.append conf.is [Guard(g, p, c1::cs_t, 0)] in
+            else 
+              (* FETCH-IF-FALSE rule *)
+              let ls = List.append conf.is [Guard(g, p, c1::cs_t, 0)] in
               {is=ls; cs=c2::cs_t; mu=conf.mu; rho=conf.rho}
           )
         | _ -> failwith "Direttiva non valida!"
