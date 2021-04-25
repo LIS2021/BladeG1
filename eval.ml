@@ -7,7 +7,7 @@ type value =
   | Aval of int * int
   | Pval of int
 
-(**         DIRECTIVES         **)
+(*         DIRECTIVES         *)
 type prediction = bool
 
 type directive =
@@ -16,7 +16,7 @@ type directive =
   | Exec of int
   | Retire
 
-(**         OBSERVATIONS         **)
+(*         OBSERVATIONS         *)
 type observation =
   | None
   | Read of int * int list
@@ -24,7 +24,7 @@ type observation =
   | Fail of int
   | Rollback of int
 
-(**        INSTRUCTION SET        **)
+(*        INSTRUCTION SET        *)
 type instruction =
   | Nop
   | AssignV of identifier * value
@@ -37,13 +37,13 @@ type instruction =
   | Guard of expr * prediction * cmd list * int
   | Fail of int 
 
-(**        CONFIGURATIONS         **)
+(*       CONFIGURATIONS        *)
 type configuration = {
   is : instruction list ; 
   cs : cmd list ; 
-  mutable mu : int array ; 
-  mutable rho : int StringMap.t ;
-}
+  mu : int array ; 
+  rho : int StringMap.t ;
+} [@@deriving show]
 
 type decl_type =
   | TypI
@@ -58,16 +58,29 @@ type decl_type =
 
     val blade: cmd -> cmd *)
 
-let fresh = ref 0           (* Assign an id value to a node *)
+let fresh = ref 0           
+let fresh_var = ref 0;;
+
+(** 
+   This function assign a fresh number p to a specific [instruction] type value (i.e. Fail(p) and Guard(_,_,_, p)) 
+   @return a new int value
+*)
 let fresh() = 
   incr fresh;
   !fresh;;
 
-let fresh_var = ref 0;;
+(** 
+   This function assign a fresh id number  
+   @return a new int value
+*)
 let fresh_var() =
   incr fresh_var;
   !fresh_var;;
 
+(** 
+   This function creates a variable having the form "var"^id (e.g. "var0", "var1", ...) 
+   @return a new variable identifier   
+*)
 let make_fresh_var() =
   let new_var = "var" in
   let num = fresh_var() in
@@ -108,6 +121,152 @@ let rec eval_expr e rho map =
                           |Some(TypA(b,l)) -> Ival(b)
                           |_ -> failwith "Invalid type for base")
 
+(**
+   This function executes a fetch step (previously given as directive by the attacker) on the next command [c].
+   This stage is executed according to a given rule system, described by the Blade paper.   
+   @param conf the configuration
+   @return the new configuration after a fetch step
+*)
+let eval_fetch (conf: configuration) = 
+  let c = List.hd conf.cs in
+  match c with
+  (* FETCH-SKIP rule *)
+  | Skip -> 
+    (
+      let ls = List.append conf.is [Nop] in
+      let cs_t = List.tl conf.cs in
+      {conf with is=ls ; cs=cs_t}
+    ) 
+  (* FETCH-FAIL rule *)
+  | Fail -> 
+    (
+      let ls = List.append conf.is [Fail(fresh())] in
+      let cs_t = List.tl conf.cs in
+      {conf with is=ls ; cs=cs_t}
+    )
+  (* this type-constructor could correspond to more cases *)
+  | VarAssign(id, rh) -> 
+    (
+      match rh with
+      (* FETCH-ASGN rule *)
+      | Expr(e) ->
+        (
+          let ls = List.append conf.is [AssignE(id, e)] in
+          let cs_t = List.tl conf.cs in
+          {conf with is=ls ; cs=cs_t}
+        )
+      (* FETCH-PTR-LOAD rule *)
+      | PtrRead(e) ->
+        (
+          let ls = List.append conf.is [Load(id, e)] in
+          let cs_t = List.tl conf.cs in
+          {conf with is=ls ; cs=cs_t}
+        )
+      (* FETCH-ARRAY-LOAD rule *)
+      | ArrayRead(id_arr, e) ->
+        ( 
+          let g = BinOp(e, Length(id_arr), "<") in
+          let rhs_new = Expr(BinOp(Base(id_arr), e, "+")) in
+          let asgn_new = VarAssign(id, rhs_new) in
+          (* if(e < length(id_arr)) then id := ptr(base(id_arr) + e) else fail *)
+          let cmd_new = If(g, asgn_new, Fail) in
+          let cs_t = List.tl conf.cs in
+          {conf with cs=cmd_new::cs_t}
+        )
+    )
+  (* FETCH-PTR-STORE rule *)
+  | PtrAssign(e1, e2) -> 
+    (
+      let ls = List.append conf.is [StoreE(e1, e2)] in
+      let cs_t = List.tl conf.cs in
+      {conf with is=ls ; cs=cs_t}  
+    )
+  (* FETCH-ARRAY-STORE rule *)
+  | ArrAssign(id, e1, e2) -> 
+    (
+      let g = BinOp(e1, Length(id), "<") in
+      let lhs_new = BinOp(Base(id), e1, "+") in
+      let asgn_new = PtrAssign(lhs_new, e2) in
+      (* if(e1 < length(id_arr)) then ptr(base(id_arr) + e1) := e2 else fail *)
+      let cmd_new = If(g, asgn_new, Fail) in
+      let cs_t = List.tl conf.cs in
+      {conf with cs=cmd_new::cs_t}
+    )
+  (* FETCH-SEQ rule *)
+  | Seq(c1, c2) -> 
+    (
+      let cs_t = List.tl conf.cs in
+      {conf with cs=c1::c2::cs_t}
+    )
+  (* FETCH-WHILE rule *)
+  | While(g, cm) -> 
+    (
+      let cs_t = List.tl conf.cs in
+      let cm_seq = Seq(cm, c) in
+      let w_unrolled = If(g, cm_seq, Skip) in
+      {conf with cs=w_unrolled::cs_t}
+    )
+  (* this type-constructor could corresponde to more cases *)
+  | Protect(id, pct, rhs) ->
+    (
+      match rhs with
+      (* FETCH-PROTECT-EXPR rule *)
+      | Expr(e) -> 
+        (
+          let ls = List.append conf.is [IProtectE(id, pct, e)] in 
+          let cs_t = List.tl conf.cs in
+          {conf with is=ls ; cs=cs_t}
+        )
+      (* FETCH-PROTECT-SLH rule *)
+      | ArrayRead(id_arr, e) when pct=Slh ->
+        (
+          let g = BinOp(e, Length(id), "<") in
+          let g_rhs = Expr(g) in
+          let v_frh = make_fresh_var() in
+          let c1 = VarAssign(v_frh, g_rhs) in
+          let ptr = BinOp(Base(id), e, "+") in
+          let xor = BinOp(ptr, g, "xor") in
+          let c3 = VarAssign(id, PtrRead(xor)) in
+          let c2 = VarAssign(v_frh, Expr(InlineIf(g, CstI(1), CstI(0)))) in
+          let cmd_new = Seq(c1, If(g, Seq(c2, c3), Fail)) in
+          let cs_t = List.tl conf.cs in
+          {conf with cs=cmd_new::cs_t}
+        ) 
+      (* FETCH-PROTECT-ARRAY & FETCH-PROTECT-PTR (premises in the two rules are the same) *)
+      | _ -> 
+        (
+          let id_new = id^"'" in
+          let asgn_new = VarAssign(id_new, rhs) in 
+          let protect_new = Protect(id, pct, Expr(Var(id_new))) in
+          let cs_t = List.tl conf.cs in
+          {conf with cs=asgn_new::protect_new::cs_t}
+        )
+    )
+  | _ -> failwith "Invalid directive"
+
+(** 
+   This function execute a fetch step with branch predictor (previously given as directive by the attacker) on the next command [c]. 
+   @param p the prediction done when fetching the if statement 
+   @param conf the configuration  
+   @return the new configuration after a fetch(p) step
+*)
+let eval_pfetch p conf = 
+  let c = List.hd conf.cs in
+  match c with
+  | If(g, c1, c2) ->
+    (
+      let cs_t = List.tl conf.cs in
+      if p then 
+        (* FETCH-IF-TRUE rule *)
+        let ls = List.append conf.is [Guard(g, p, c2::cs_t, fresh())] in
+        {conf with is=ls ; cs=c1::cs_t}
+      else 
+        (* FETCH-IF-FALSE rule *)
+        let ls = List.append conf.is [Guard(g, p, c1::cs_t, fresh())] in
+        {conf with is=ls ; cs=c2::cs_t}
+    )
+  | _ -> failwith "Invalid directive"
+
 let speculator map = 
   fun conf ->
   match (conf.is, conf.cs) with
@@ -130,153 +289,6 @@ let rec eval conf map attacker trace counter =
     (
       let dir = attacker conf in
 
-      let c = List.hd conf.cs in
-
-      let istr = List.hd conf.is in
-      (**
-         This function executes a fetch step (previously given as directive by the attacker) on the next command [c].
-         This stage is executed according to a given rule system, described by the Blade paper.   
-         @return the new configuration after a fetch step
-      *)
-      let rec eval_fetch = 
-        match c with
-        (* FETCH-SKIP rule *)
-        | Skip -> 
-          (
-            let ls = List.append conf.is [Nop] in
-            let cs_t = List.tl conf.cs in
-            {is=ls; cs=cs_t; mu=conf.mu; rho=conf.rho}
-          ) 
-        (* FETCH-FAIL rule *)
-        | Fail -> 
-          (
-            let ls = List.append conf.is [Fail(fresh())] in
-            let cs_t = List.tl conf.cs in
-            {is=ls; cs=cs_t; mu=conf.mu; rho=conf.rho}
-          )
-        (* this type-constructor could correspond to more cases *)
-        | VarAssign(id, rh) -> 
-          (
-            match rh with
-            (* FETCH-ASGN rule *)
-            | Expr(e) ->
-              (
-                let ls = List.append conf.is [AssignE(id, e)] in
-                let cs_t = List.tl conf.cs in
-                {is=ls; cs=cs_t; mu=conf.mu; rho=conf.rho}
-              )
-            (* FETCH-PTR-LOAD rule *)
-            | PtrRead(e) ->
-              (
-                let ls = List.append conf.is [Load(id, e)] in
-                let cs_t = List.tl conf.cs in
-                {is=ls; cs=cs_t; mu=conf.mu; rho=conf.rho}
-              )
-            (* FETCH-ARRAY-LOAD rule *)
-            | ArrayRead(id_arr, e) ->
-              ( 
-                let g = BinOp(e, Length(id_arr), "<") in
-                let rhs_new = Expr(BinOp(Base(id_arr), e, "+")) in
-                let asgn_new = VarAssign(id, rhs_new) in
-                (* if(e < length(id_arr)) then id := ptr(base(id_arr) + e) else fail *)
-                let cmd_new = If(g, asgn_new, Fail) in
-                let cs_t = List.tl conf.cs in
-                {is=conf.is; cs=cmd_new::cs_t; mu=conf.mu; rho=conf.rho}
-              )
-          )
-        (* FETCH-PTR-STORE rule *)
-        | PtrAssign(e1, e2) -> 
-          (
-            let ls = List.append conf.is [StoreE(e1, e2)] in
-            let cs_t = List.tl conf.cs in
-            {is=ls; cs=cs_t; mu=conf.mu; rho=conf.rho}    
-          )
-        (* FETCH-ARRAY-STORE rule *)
-        | ArrAssign(id, e1, e2) -> 
-          (
-            let g = BinOp(e1, Length(id), "<") in
-            let lhs_new = BinOp(Base(id), e1, "+") in
-            let asgn_new = PtrAssign(lhs_new, e2) in
-            (* if(e1 < length(id_arr)) then ptr(base(id_arr) + e1) := e2 else fail *)
-            let cmd_new = If(g, asgn_new, Fail) in
-            let cs_t = List.tl conf.cs in
-            {is=conf.is; cs=cmd_new::cs_t; mu=conf.mu; rho=conf.rho}
-          )
-        (* FETCH-SEQ rule *)
-        | Seq(c1, c2) -> 
-          (
-            let cs_t = List.tl conf.cs in
-            {is=conf.is; cs=c1::c2::cs_t; mu=conf.mu; rho=conf.rho}
-          )
-        (* FETCH-WHILE rule *)
-        | While(g, cm) -> 
-          (
-            let cs_t = List.tl conf.cs in
-            let cm_seq = Seq(cm, c) in
-            let w_unrolled = If(g, cm_seq, Skip) in
-            {is=conf.is; cs=w_unrolled::cs_t; mu=conf.mu; rho=conf.rho}
-          )
-        (* this type-constructor could corresponde to more cases *)
-        | Protect(id, pct, rhs) ->
-          (
-            match rhs with
-            (* FETCH-PROTECT-EXPR rule *)
-            | Expr(e) -> 
-              (
-                let ls = List.append conf.is [IProtectE(id, pct, e)] in 
-                let cs_t = List.tl conf.cs in
-                {is=ls; cs=cs_t; mu=conf.mu; rho=conf.rho}
-              )
-            (* FETCH-PROTECT-SLH rule *)
-            | ArrayRead(id_arr, e) when pct=Slh ->
-              (
-                let g = BinOp(e, Length(id), "<") in
-                let g_rhs = Expr(g) in
-                let v_frh = make_fresh_var() in
-                let c1 = VarAssign(v_frh, g_rhs) in
-                let ptr = BinOp(Base(id), e, "+") in
-                let xor = BinOp(ptr, g, "xor") in
-                let c3 = VarAssign(id, PtrRead(xor)) in
-                let c2 = VarAssign(v_frh, Expr(InlineIf(g, CstI(1), CstI(0)))) in
-                let cmd_new = Seq(c1, If(g, Seq(c2, c3), Fail)) in
-                let cs_t = List.tl conf.cs in
-                {is=conf.is; cs=cmd_new::cs_t; mu=conf.mu; rho=conf.rho}
-              ) 
-            (* FETCH-PROTECT-ARRAY & FETCH-PROTECT-PTR (premises in the two rules are the same) *)
-            | _ -> 
-              (
-                let id_new = id^"'" in
-                let asgn_new = VarAssign(id_new, rhs) in 
-                let protect_new = Protect(id, pct, Expr(Var(id_new))) in
-                let cs_t = List.tl conf.cs in
-                {is=conf.is; cs=asgn_new::protect_new::cs_t; mu=conf.mu; rho=conf.rho}
-              )
-          )
-        | _ -> failwith "Direttiva non valida!"
-
-      in
-
-      (** 
-         This function execute a fetch step with branch predictor (previously given as directive by the attacker) on the next command [c]. 
-         @return the new configuration after a fetch(p) step
-         @param p the prediction done when fetching the if statement   
-      *)
-      let rec eval_pfetch p = 
-        match c with
-        | If(g, c1, c2) ->
-          (
-            let cs_t = List.tl conf.cs in
-            if p then 
-              (* FETCH-IF-TRUE rule *)
-              let ls = List.append conf.is [Guard(g, p, c2::cs_t, fresh())] in
-              {is=ls; cs=c1::cs_t; mu=conf.mu; rho=conf.rho}
-            else 
-              (* FETCH-IF-FALSE rule *)
-              let ls = List.append conf.is [Guard(g, p, c1::cs_t, 0)] in
-              {is=ls; cs=c2::cs_t; mu=conf.mu; rho=conf.rho}
-          )
-        | _ -> failwith "Direttiva non valida!"
-      in
       (** TODO: - valutare il cambio del tipo della rho
           - valutare la necessità di un tipp puntatore
           - eval_expr, trvr_map,
@@ -391,7 +403,8 @@ let rec eval conf map attacker trace counter =
       (** Retire rule implementation
           @return (conf,obs) the resulting configuration and the observable created
       *)
-      let rec eval_retire = 
+      let eval_retire conf = 
+        let istr = List.hd conf.is in
         match istr with
         | Nop                       -> ({ conf with is = List.tl conf.is }, None)
         | AssignV (id, Ival v)      -> (let rho' = StringMap.add id v conf.rho in
@@ -405,12 +418,12 @@ let rec eval conf map attacker trace counter =
       in
 
       match dir with
-      | Fetch -> let conf = eval_fetch in 
+      | Fetch -> let conf = eval_fetch conf in 
         eval conf map attacker (trace @ [None]) (counter+1)
-      | PFetch(p) -> let conf = eval_pfetch p in 
+      | PFetch(p) -> let conf = eval_pfetch p conf in 
         eval conf map attacker (trace @ [None]) (counter+1)
       | Exec(n) -> let (conf, obs) = eval_exec n in
         eval conf map attacker (trace @ [obs]) (counter+1)
-      | Retire -> let (conf, obs) = eval_retire in 
+      | Retire -> let (conf, obs) = eval_retire conf in 
         eval conf map attacker (trace @ [obs]) (counter+1)
     )
