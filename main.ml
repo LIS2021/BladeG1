@@ -16,9 +16,6 @@ module Gen = HashtblGenerator (G)
 module B = BaselineBlade (G) (S) (N) (Gen)
 
 let _ =
-  let src = LazyStream.of_channel stdin in
-  match Parser.parse src with
-  | None -> failwith "Syntax error"
-  | Some c ->
-    let c' = B.repair_cmd c in
-    Printf.printf "%s\n" (print_cmd c')
+  let c = parse_channel_fail stdin in
+  let c' = B.repair_cmd c in
+  Printf.printf "%s\n" (print_cmd c')

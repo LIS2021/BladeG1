@@ -1,7 +1,7 @@
 open Ast
 open Opal
 
-let parse stream =
+let parse_stream stream =
   let reserved = [
     "if";
     "then";
@@ -134,3 +134,19 @@ let parse stream =
   in match (parse_cmd stream) with
   | Some ((res, _)) -> Some res
   | None -> None
+
+let parse_channel channel =
+  LazyStream.of_channel channel |> parse_stream
+
+let parse_channel_fail s =
+  match parse_channel s with
+  | Some x -> x
+  | _ -> failwith "Syntax error!"
+
+let parse_string s =
+  LazyStream.of_string s |> parse_stream
+
+let parse_string_fail s =
+  match parse_string s with
+  | Some x -> x
+  | _ -> failwith "Syntax error!"
