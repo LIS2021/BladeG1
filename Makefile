@@ -2,10 +2,10 @@ PKGS=opal
 
 .PHONY: docs clean
 
-ast.native: ast.ml graph.ml flow_network.ml
-	ocamlbuild -pkgs '${PKGS}' ast.native
+main.native: ast.ml graph.ml flow_network.ml main.ml
+	ocamlbuild -pkgs '${PKGS}' main.native
 
-docs: graph.ml flow_network.ml ast.ml
+docs: graph.ml flow_network.ml ast.ml main.ml
 	mkdir -p docs
 	ocamlfind ocamlc -linkpkg -package opal $^
 	ocamlfind ocamldoc -html -d docs -package opal $^
@@ -13,4 +13,4 @@ docs: graph.ml flow_network.ml ast.ml
 clean:
 	-rm *.cmi *.cmo *.cma *.native a.out
 
-all: ast.native
+all: main.native
