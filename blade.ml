@@ -40,10 +40,13 @@ module BaselineBlade
            let ni_in_cut = List.mem ni min_cut in
            let nr_in_cut = List.mem nr min_cut in
            let reachable = can_reach_sink residual_graph ni in
-           (match (ni_in_cut, nr_in_cut) with
-            | false, true when reachable -> ProtectN (i, Auto, r)
-            | true, false -> failwith "Invalid graph!"
-            | _ -> VarAssignN(i, r, ni, nr))
+           let prot = match r with
+             | ArrayRead(_, _) -> Slh
+             | _ -> Fence
+           in (match (ni_in_cut, nr_in_cut) with
+               | false, true when reachable -> ProtectN (i, prot, r)
+               | true, false -> failwith "Invalid graph!"
+               | _ -> VarAssignN(i, r, ni, nr))
          | PtrAssignN (e1, e2) -> PtrAssignN (e1, e2)
          | ArrAssignN (i, e1, e2) -> ArrAssignN (i, e1, e2)
          | SeqN (c1, c2) ->  SeqN (helper c1, helper c2)
