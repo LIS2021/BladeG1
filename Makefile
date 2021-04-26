@@ -1,5 +1,5 @@
 PKGS=opal
-SRCS=graph.ml flow_network.ml ast.ml def_use_generator.ml eval.ml util.ml blade.ml parser.ml do_blade.ml
+SRCS=graph.ml flow_network.ml ast.ml def_use_generator.ml eval.ml util.ml blade.ml parser.ml do_blade.ml run_interp.ml
 
 .PHONY: docs clean all
 
