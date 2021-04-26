@@ -172,121 +172,123 @@ let rec pending is =
    @return the new configuration after a fetch step
 *)
 let eval_fetch (conf: configuration) = 
-  let c = List.hd conf.cs in
-  match c with
-  (* FETCH-SKIP rule *)
-  | Skip -> 
-    (
-      let ls = List.append conf.is [Nop] in
-      let cs_t = List.tl conf.cs in
-      {conf with is=ls ; cs=cs_t}
-    ) 
-  (* FETCH-FAIL rule *)
-  | Fail -> 
-    (
-      let ls = List.append conf.is [Fail(fresh())] in
-      let cs_t = List.tl conf.cs in
-      {conf with is=ls ; cs=cs_t}
-    )
-  (* this type-constructor could correspond to more cases *)
-  | VarAssign(id, rh) -> 
-    (
-      match rh with
-      (* FETCH-ASGN rule *)
-      | Expr(e) ->
-        (
-          let ls = List.append conf.is [AssignE(id, e)] in
-          let cs_t = List.tl conf.cs in
-          {conf with is=ls ; cs=cs_t}
-        )
-      (* FETCH-PTR-LOAD rule *)
-      | PtrRead(e) ->
-        (
-          let ls = List.append conf.is [Load(id, e)] in
-          let cs_t = List.tl conf.cs in
-          {conf with is=ls ; cs=cs_t}
-        )
-      (* FETCH-ARRAY-LOAD rule *)
-      | ArrayRead(id_arr, e) ->
-        ( 
-          let g = BinOp(e, Length(id_arr), "<") in
-          let rhs_new = Expr(BinOp(Base(id_arr), e, "+")) in
-          let asgn_new = VarAssign(id, rhs_new) in
-          (* if(e < length(id_arr)) then id := ptr(base(id_arr) + e) else fail *)
-          let cmd_new = If(g, asgn_new, Fail) in
-          let cs_t = List.tl conf.cs in
-          {conf with cs=cmd_new::cs_t}
-        )
-    )
-  (* FETCH-PTR-STORE rule *)
-  | PtrAssign(e1, e2) -> 
-    (
-      let ls = List.append conf.is [StoreE(e1, e2)] in
-      let cs_t = List.tl conf.cs in
-      {conf with is=ls ; cs=cs_t}  
-    )
-  (* FETCH-ARRAY-STORE rule *)
-  | ArrAssign(id, e1, e2) -> 
-    (
-      let g = BinOp(e1, Length(id), "<") in
-      let lhs_new = BinOp(Base(id), e1, "+") in
-      let asgn_new = PtrAssign(lhs_new, e2) in
-      (* if(e1 < length(id_arr)) then ptr(base(id_arr) + e1) := e2 else fail *)
-      let cmd_new = If(g, asgn_new, Fail) in
-      let cs_t = List.tl conf.cs in
-      {conf with cs=cmd_new::cs_t}
-    )
-  (* FETCH-SEQ rule *)
-  | Seq(c1, c2) -> 
-    (
-      let cs_t = List.tl conf.cs in
-      {conf with cs=c1::c2::cs_t}
-    )
-  (* FETCH-WHILE rule *)
-  | While(g, cm) -> 
-    (
-      let cs_t = List.tl conf.cs in
-      let cm_seq = Seq(cm, c) in
-      let w_unrolled = If(g, cm_seq, Skip) in
-      {conf with cs=w_unrolled::cs_t}
-    )
-  (* this type-constructor could corresponde to more cases *)
-  | Protect(id, pct, rhs) ->
-    (
-      match rhs with
-      (* FETCH-PROTECT-EXPR rule *)
-      | Expr(e) -> 
-        (
-          let ls = List.append conf.is [IProtectE(id, pct, e)] in 
-          let cs_t = List.tl conf.cs in
-          {conf with is=ls ; cs=cs_t}
-        )
-      (* FETCH-PROTECT-SLH rule *)
-      | ArrayRead(id_arr, e) when pct=Slh ->
-        (
-          let g = BinOp(e, Length(id), "<") in
-          let g_rhs = Expr(g) in
-          let v_frh = make_fresh_var() in
-          let c1 = VarAssign(v_frh, g_rhs) in
-          let ptr = BinOp(Base(id), e, "+") in
-          let xor = BinOp(ptr, g, "xor") in
-          let c3 = VarAssign(id, PtrRead(xor)) in
-          let c2 = VarAssign(v_frh, Expr(InlineIf(g, CstI(1), CstI(0)))) in
-          let cmd_new = Seq(c1, If(g, Seq(c2, c3), Fail)) in
-          let cs_t = List.tl conf.cs in
-          {conf with cs=cmd_new::cs_t}
-        ) 
-      (* FETCH-PROTECT-ARRAY & FETCH-PROTECT-PTR (premises in the two rules are the same) *)
-      | _ -> 
-        (
-          let id_new = id^"'" in
-          let asgn_new = VarAssign(id_new, rhs) in 
-          let protect_new = Protect(id, pct, Expr(Var(id_new))) in
-          let cs_t = List.tl conf.cs in
-          {conf with cs=asgn_new::protect_new::cs_t}
-        )
-    )
-  | _ -> failwith "Invalid directive"
+  if List.length conf.cs = 0 then failwith "Impossible to fetch: command list is empty"
+  else
+    let c = List.hd conf.cs in
+    match c with
+    (* FETCH-SKIP rule *)
+    | Skip -> 
+      (
+        let ls = List.append conf.is [Nop] in
+        let cs_t = List.tl conf.cs in
+        {conf with is=ls ; cs=cs_t}
+      ) 
+    (* FETCH-FAIL rule *)
+    | Fail -> 
+      (
+        let ls = List.append conf.is [Fail(fresh())] in
+        let cs_t = List.tl conf.cs in
+        {conf with is=ls ; cs=cs_t}
+      )
+    (* this type-constructor could correspond to more cases *)
+    | VarAssign(id, rh) -> 
+      (
+        match rh with
+        (* FETCH-ASGN rule *)
+        | Expr(e) ->
+          (
+            let ls = List.append conf.is [AssignE(id, e)] in
+            let cs_t = List.tl conf.cs in
+            {conf with is=ls ; cs=cs_t}
+          )
+        (* FETCH-PTR-LOAD rule *)
+        | PtrRead(e) ->
+          (
+            let ls = List.append conf.is [Load(id, e)] in
+            let cs_t = List.tl conf.cs in
+            {conf with is=ls ; cs=cs_t}
+          )
+        (* FETCH-ARRAY-LOAD rule *)
+        | ArrayRead(id_arr, e) ->
+          ( 
+            let g = BinOp(e, Length(id_arr), "<") in
+            let rhs_new = Expr(BinOp(Base(id_arr), e, "+")) in
+            let asgn_new = VarAssign(id, rhs_new) in
+            (* if(e < length(id_arr)) then id := ptr(base(id_arr) + e) else fail *)
+            let cmd_new = If(g, asgn_new, Fail) in
+            let cs_t = List.tl conf.cs in
+            {conf with cs=cmd_new::cs_t}
+          )
+      )
+    (* FETCH-PTR-STORE rule *)
+    | PtrAssign(e1, e2) -> 
+      (
+        let ls = List.append conf.is [StoreE(e1, e2)] in
+        let cs_t = List.tl conf.cs in
+        {conf with is=ls ; cs=cs_t}  
+      )
+    (* FETCH-ARRAY-STORE rule *)
+    | ArrAssign(id, e1, e2) -> 
+      (
+        let g = BinOp(e1, Length(id), "<") in
+        let lhs_new = BinOp(Base(id), e1, "+") in
+        let asgn_new = PtrAssign(lhs_new, e2) in
+        (* if(e1 < length(id_arr)) then ptr(base(id_arr) + e1) := e2 else fail *)
+        let cmd_new = If(g, asgn_new, Fail) in
+        let cs_t = List.tl conf.cs in
+        {conf with cs=cmd_new::cs_t}
+      )
+    (* FETCH-SEQ rule *)
+    | Seq(c1, c2) -> 
+      (
+        let cs_t = List.tl conf.cs in
+        {conf with cs=c1::c2::cs_t}
+      )
+    (* FETCH-WHILE rule *)
+    | While(g, cm) -> 
+      (
+        let cs_t = List.tl conf.cs in
+        let cm_seq = Seq(cm, c) in
+        let w_unrolled = If(g, cm_seq, Skip) in
+        {conf with cs=w_unrolled::cs_t}
+      )
+    (* this type-constructor could corresponde to more cases *)
+    | Protect(id, pct, rhs) ->
+      (
+        match rhs with
+        (* FETCH-PROTECT-EXPR rule *)
+        | Expr(e) -> 
+          (
+            let ls = List.append conf.is [IProtectE(id, pct, e)] in 
+            let cs_t = List.tl conf.cs in
+            {conf with is=ls ; cs=cs_t}
+          )
+        (* FETCH-PROTECT-SLH rule *)
+        | ArrayRead(id_arr, e) when pct=Slh ->
+          (
+            let g = BinOp(e, Length(id), "<") in
+            let g_rhs = Expr(g) in
+            let v_frh = make_fresh_var() in
+            let c1 = VarAssign(v_frh, g_rhs) in
+            let ptr = BinOp(Base(id), e, "+") in
+            let xor = BinOp(ptr, g, "xor") in
+            let c3 = VarAssign(id, PtrRead(xor)) in
+            let c2 = VarAssign(v_frh, Expr(InlineIf(g, CstI(1), CstI(0)))) in
+            let cmd_new = Seq(c1, If(g, Seq(c2, c3), Fail)) in
+            let cs_t = List.tl conf.cs in
+            {conf with cs=cmd_new::cs_t}
+          ) 
+        (* FETCH-PROTECT-ARRAY & FETCH-PROTECT-PTR (premises in the two rules are the same) *)
+        | _ -> 
+          (
+            let id_new = id^"'" in
+            let asgn_new = VarAssign(id_new, rhs) in 
+            let protect_new = Protect(id, pct, Expr(Var(id_new))) in
+            let cs_t = List.tl conf.cs in
+            {conf with cs=asgn_new::protect_new::cs_t}
+          )
+      )
+    | _ -> failwith "Invalid directive"
 
 (** 
    This function execute a fetch step with branch predictor (previously given as directive by the attacker) on the next command [c]. 
