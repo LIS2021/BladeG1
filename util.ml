@@ -1,5 +1,7 @@
 open Ast
 
+module StringMap = Map.Make(String)
+
 (** Returns a string representation of an expression. *)
 let rec print_expr (e: expr) : string = match e with
   | CstI i -> Printf.sprintf "%d" i
@@ -36,3 +38,9 @@ let print_cmd (c: cmd) : string =
         | Auto -> "protect"
       in Printf.sprintf "%s := %s(%s)" i prot_type (print_rhs r)
   in helper_cmd c
+
+let print_decls (map: decl_type StringMap.t) : string =
+  let print_type t = match t with
+    | TypA (b, l) -> Printf.sprintf "[%d, %d]" b l
+    | TypI -> "int"
+  in StringMap.fold (fun k t s -> Printf.sprintf "%s: %s;\n%s" k (print_type t) s) map ""

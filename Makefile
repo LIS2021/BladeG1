@@ -1,17 +1,18 @@
 PKGS=opal
-SRCS=graph.ml flow_network.ml ast.ml def_use_generator.ml eval.ml util.ml blade.ml parser.ml main.ml
+SRCS=graph.ml flow_network.ml ast.ml def_use_generator.ml eval.ml util.ml blade.ml parser.ml do_blade.ml
 
-.PHONY: docs clean
+.PHONY: docs clean all
 
-main.native: $(SRCS)
-	ocamlbuild -pkgs '${PKGS}' -tag 'debug' main.native
+%.native: $(SRCS)
+	ocamlbuild -pkgs '${PKGS}' -tag 'debug' $@
 
 docs: $(SRCS)
 	mkdir -p docs
 	ocamlfind ocamlc -linkpkg -package opal $^
 	ocamlfind ocamldoc -html -d docs -package opal $^
+	make clean
 
 clean:
 	-rm *.cmi *.cmo *.cma *.native a.out
 
-all: main.native
+all: do_blade.native

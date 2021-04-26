@@ -27,3 +27,7 @@ type cmd =
   | If of expr * cmd * cmd
   | While of expr * cmd
   | Protect of identifier * protect * rhs
+
+type decl_type =
+  | TypI
+  | TypA of int * int

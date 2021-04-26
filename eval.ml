@@ -45,11 +45,6 @@ type configuration = {
   rho : int StringMap.t ;
 } [@@deriving show]
 
-type decl_type =
-  | TypI
-  | TypA of int * int
-  | TypP
-
 (*  val eval: configuration ->
           decl_type Map.Make(String).t ->
           (configuration -> directive) ->

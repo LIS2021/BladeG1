@@ -1,10 +1,7 @@
 open Ast
-
-open Opal
 open Parser
 open Blade
 open Util
-open Eval
 open Graph
 open Flow_network
 open Def_use_generator
@@ -63,6 +60,7 @@ let _ =
          (module E : CostEstimator)
   in let module Gen = HashtblGenerator (G) (E) in
   let module B = BaselineBlade (G) (S) (N) (Gen) in
-  let c = parse_channel_fail stdin in
+  let (decl, c) = parse_channel_fail parse_decls_cmd stdin in
+  print_string (print_decls decl);
   let c' = B.repair_cmd c in
   Printf.printf "%s\n" (print_cmd c')
