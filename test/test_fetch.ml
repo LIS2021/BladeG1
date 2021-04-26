@@ -3,24 +3,6 @@ open Eval;;
 open Parser;;
 open Util;;
 
-let print_value v =
-  match v with
-  | Ival num -> string_of_int num^";\n"
-  | Aval(b,m) -> "{base: "^(string_of_int b)^"; length: "^(string_of_int m)^";\n"
-  | Pval num -> string_of_int num^";\n"
-
-let print_istr istr =
-  match istr with
-  | Nop -> print_string "nop;\n"
-  | AssignE(id, e) -> print_string (id^" := "^(print_expr e)^";\n")
-  | Load(id, e) -> print_string (id^" := load("^(print_expr e)^");\n")
-  | StoreE(e1, e2)-> print_string ((print_expr e1)^" := store("^(print_expr e2)^");\n")
-  | IProtectE(id, prt, e) -> print_string (id^"protect("^(print_expr e)^");\n")
-  | Guard(e, p, lst, n) -> print_string ("guard("^(print_expr e)^", "^(string_of_bool p)^", "^(string_of_int n)^");\n")
-  | Fail(n) -> print_string ("fail("^(string_of_int n)^");\n")
-  | _ -> print_string ""
-
-
 let fetch_lover_attacker conf = 
   try
     let c = List.hd conf.cs in
