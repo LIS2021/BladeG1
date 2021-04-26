@@ -25,17 +25,28 @@ module ExponentialCost : CostEstimator = struct
   let get_cost = exp_cost
 end
 
-module ExponentialCostNoFences (E: CostEstimator) : CostEstimator = struct
+module CostModelNoFences (E: CostEstimator) : CostEstimator = struct
   let get_cost = costly_fence E.get_cost
 end
+
+let cost_model = ref "uniform"
+
+let options = [("-c", Arg.Set_string cost_model, "Edge cost model. Can be 'uniform', 'exponential', 'linearnofences', 'expnofences'")]
 
 module G = MatrixGraph
 module S = BFS (G)
 module N = FlowNetworkMaker (G) (S)
-module Gen = HashtblGenerator (G) (ExponentialCost)
-module B = BaselineBlade (G) (S) (N) (Gen)
 
 let _ =
+  Arg.parse options (fun _ -> ()) "Repairs a While program with protects";
+  let (module E) = match !cost_model with
+    | "uniform" -> (module UniformCost: CostEstimator)
+    | "exponential" -> (module ExponentialCost : CostEstimator)
+    | "linearnofences" -> (module CostModelNoFences (UniformCost) : CostEstimator)
+    | "expnofences" -> (module CostModelNoFences (ExponentialCost) : CostEstimator)
+    | _ -> failwith "Invalid cost model"
+  in let module Gen = HashtblGenerator (G) (E) in
+  let module B = BaselineBlade (G) (S) (N) (Gen) in
   let c = parse_channel_fail stdin in
   let c' = B.repair_cmd c in
   Printf.printf "%s\n" (print_cmd c')
