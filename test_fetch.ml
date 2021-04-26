@@ -1,14 +1,7 @@
 open Ast;;
 open Eval;;
-
-let rec print_expr e =
-  match e with
-  | CstI num -> string_of_int num
-  | Var id -> id
-  | BinOp(e1, e2, op) -> (print_expr e1)^op^(print_expr e2)
-  | InlineIf(e1, e2, e3) -> (print_expr e1)^"? "^(print_expr e2)^" : "^(print_expr e3)
-  | Length id -> "length("^id^")"
-  | Base id -> "base("^id^")"
+open Parser;;
+open Util;;
 
 let print_value v =
   match v with
@@ -39,141 +32,93 @@ let fetch_lover_attacker conf =
     List.iter (fun is -> print_istr is) conf.is;
     failwith "Unknown"
 
-
-(*
-   i1 := 2
-   i2 := 4
-   a[i1] := 7
-   x := a[i1]
-   if b then y := a[i2] then fail
-   z := x + y
-   w := c[z]
-*)
 let test1 =
-  let decs =
-    let map = StringMap.empty in
-    let _ = StringMap.add "i1" TypI map in
-    let _ = StringMap.add "i2" TypI map in
-    let _ = StringMap.add "x" TypI map in
-    let _ = StringMap.add "b" TypI map in
-    let _ = StringMap.add "y" TypI map in
-    let _ = StringMap.add "z" TypI map in
-    let _ = StringMap.add "w" TypI map in
-    let _ = StringMap.add "a" (TypA(0, 10)) map in
-    StringMap.add "c" (TypA(0, 10)) map
-  in 
+  let (decs, command) = parse_string_fail parse_decls_cmd "
+  i1: int;
+  i2: int;
+  x: int;
+  b: int;
+  y: int;
+  z: int;
+  w: int;
+  a: [0, 10];
+  c: [0, 10];
 
-  let command = [
-    Seq(VarAssign("i1",Expr(CstI(2))),
-        Seq(VarAssign("i2",Expr(CstI(4))),
-            Seq( ArrAssign("a", Var("i1"), CstI(7)),
-                 Seq(VarAssign("x", ArrayRead("a",Var("i1"))),
-                     Seq(If(Var("b"), VarAssign("y", ArrayRead("a", Var("i2"))), Fail), 
-                         Seq(VarAssign("z", Expr(BinOp(Var("x"), Var("y"), "+"))),
-                             VarAssign("w", ArrayRead("c", Var("z"))))
-                        )
-                    )
-               )
-           )
-       )  
-  ]
-  in
+  i1 := 2;
+  i2 := 4;
+  a[i1] := 7;
+  x := a[i1];
+  if b then
+    y := a[i2]
+  else
+    fail
+  endif;
+  z := x + y;
+  w := c[z]
+  " in
 
   let conf = {
     is = [];
-    cs = command;
+    cs = [command];
     mu = [||];
     rho = StringMap.empty;
   }
   in eval conf decs fetch_lover_attacker [] 0 
 
-  (*
-   i1 := 2
-   i2 := 4
-   x := a[i1]
-   while b 
-        y := a[i2] 
-   endwhile
-   z := x + y
-   w := c[z]
- *)
 let test2 =
-  let decs =
-    let map = StringMap.empty in
-    let _ = StringMap.add "i1" TypI map in
-    let _ = StringMap.add "i2" TypI map in
-    let _ = StringMap.add "x" TypI map in
-    let _ = StringMap.add "b" TypI map in
-    let _ = StringMap.add "y" TypI map in
-    let _ = StringMap.add "z" TypI map in
-    let _ = StringMap.add "w" TypI map in
-    let _ = StringMap.add "a" (TypA(0, 10)) map in
-    StringMap.add "c" (TypA(0, 10)) map
-  in 
+  let (decs, command) = parse_string_fail parse_decls_cmd "
+  i1: int;
+  i2: int;
+  x: int;
+  b: int;
+  y: int;
+  z: int;
+  w: int;
+  a: [0, 10];
+  c: [0, 10];
 
-  let command = [
-    Seq(VarAssign("i1",Expr(CstI(2))),
-        Seq(VarAssign("i2",Expr(CstI(4))),
-            Seq(VarAssign("x", ArrayRead("a",Var("i1"))),
-                Seq(While(Var("b"), VarAssign("y", ArrayRead("a", Var("i2")))), 
-                    Seq(VarAssign("z", Expr(BinOp(Var("x"), Var("y"), "+"))),
-                        VarAssign("w", ArrayRead("c", Var("z"))))
-                   )
-               )
-           )
-       )  
-  ]
-  in
-
+  i1 := 2;
+  i2 := 4;
+  x := a[i1];
+  while b do
+    y := a[i2]
+  endwhile;
+  z := x + y;
+  w := c[z]
+  " in
   let conf = {
     is = [];
-    cs = command;
+    cs = [command];
     mu = [||];
     rho = StringMap.empty;
   }
   in eval conf decs fetch_lover_attacker [] 0 
 
-(*
-   i1 := 2
-   i2 := 4
-   i1 := *x
-   while b 
-        y := a[i2] 
-   endwhile
-   z := x + y
-   w := c[z]
-*)
 let test3 =
-  let decs =
-    let map = StringMap.empty in
-    let _ = StringMap.add "i1" TypI map in
-    let _ = StringMap.add "i2" TypI map in
-    let _ = StringMap.add "x" TypP map in
-    let _ = StringMap.add "b" TypI map in
-    let _ = StringMap.add "y" TypI map in
-    let _ = StringMap.add "z" TypI map in
-    let _ = StringMap.add "w" TypI map in
-    let _ = StringMap.add "a" (TypA(0, 10)) map in
-    StringMap.add "c" (TypA(0, 10)) map
-  in 
+  let (decs, command) = parse_string_fail parse_decls_cmd "
+  i1: int;
+  i2: int;
+  x: int;
+  b: int;
+  y: int;
+  z: int;
+  w: int;
+  a: [0, 10];
+  c: [0, 10];
 
-  let command = [
-    Seq(VarAssign("i1",Expr(CstI(2))),
-        Seq(VarAssign("i2",Expr(CstI(4))),
-            Seq(VarAssign("i1", PtrRead(Var "x")),
-                Seq(While(Var("b"), VarAssign("y", ArrayRead("a", Var("i2")))), 
-                    Seq(VarAssign("z", Expr(BinOp(Var("x"), Var("y"), "+"))),
-                        VarAssign("w", ArrayRead("c", Var("z"))))
-                   )
-               )
-           )
-       )  
-  ]
-  in
+  i1 := 2;
+  i2 := 4;
+  i1 := *x;
+  while b do
+    y := a[i2]
+  endwhile;
+  z := x + y;
+  w := c[z]
+  " in
 
   let conf = {
     is = [];
-    cs = command;
+    cs = [command];
     mu = [||];
     rho = StringMap.empty;
   }
