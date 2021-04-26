@@ -9,14 +9,21 @@ open Graph
 open Flow_network
 open Def_use_generator
 
+let cost_model = ref "uniform"
+let costly_fences = ref false
+let depth_factor = ref 2
+let fence_factor = ref 2
+
+let rec pow x y = if y = 0 then 1 else x * (pow x (y - 1))
+
 let uniform_cost (d: int) (r: rhs): int = 1
-let exp_cost (d: int) (r: rhs): int = Int.shift_left 1 d
-let lin_cost (d: int) (r: rhs): int = if d = 0 then 1 else 2 * d
+let exp_cost (d: int) (r: rhs): int = pow !depth_factor d
+let lin_cost (d: int) (r: rhs): int = if d = 0 then 1 else !depth_factor * d
 let costly_fence (f: int -> rhs -> int) (d: int) (r: rhs): int =
   let base_cost = f d r in
   match r with
   | ArrayRead(_, _) -> base_cost
-  | _ -> base_cost * 2
+  | _ -> base_cost * !fence_factor
 
 module UniformCost : CostEstimator = struct
   let get_cost = uniform_cost
@@ -34,11 +41,10 @@ module CostModelNoFences (E: CostEstimator) : CostEstimator = struct
   let get_cost = costly_fence E.get_cost
 end
 
-let cost_model = ref "uniform"
-let costly_fences = ref false
-
-let options = [("-c", Arg.Set_string cost_model, "Edge cost model. Can be 'uniform', 'exponential', 'linear'");
-               ("-f", Arg.Set costly_fences, "Makes fences twice as expensive as SLHs")]
+let options = [("-c", Arg.Set_string cost_model, "Edge cost model. Can be 'uniform', 'exponential', 'linear' (default 'uniform')");
+               ("-f", Arg.Set costly_fences, "Makes fences more expensive than SLHs (default off)");
+               ("--depth-factor", Arg.Set_int depth_factor, "Specifies the depth cost factor for the edges in case of linear or exponential cost model (default 2)");
+               ("--fence-factor", Arg.Set_int fence_factor, "Specifies the additional cost factor for fences if enabled (default 2)")]
 
 module G = MatrixGraph
 module S = BFS (G)
