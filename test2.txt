@@ -1,0 +1,12 @@
+x: int;
+y: int;
+z: int;
+a: [0, 10];
+
+while x < length(a) do
+  y := a[x];
+  x := x + 1
+endwhile;
+z := y;
+
+if z then skip; else skip; endif;
