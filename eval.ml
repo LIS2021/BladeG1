@@ -339,7 +339,7 @@ let rec eval_exec n conf map=
                                   |Ival(n) -> let ilst =  (is1 @ [AssignV(id,Ival(Array.get conf.mu n))] @ is2) in
                                     (ilst, cs, Read(n, pending is1))
                                   |_       -> failwith "Invalid type for array read" 
-                                else failwith "Invalid directive" )
+                                else failwith "Store in instructions before the load" )
     |StoreE(e1,e2)          -> (let n = eval_expr e1 rho' map in
                                 let v = eval_expr e2 rho' map in
                                 match (n,v) with
@@ -351,12 +351,12 @@ let rec eval_exec n conf map=
     |Guard(e,pred,cml,i)    -> (match eval_expr e rho' map with
         |Ival(b) -> if b == Bool.to_int(pred) 
           then (is1 @ [Nop] @ is2, cs, None) 
-          else (is1 @ [Nop] @ is2, cml, Rollback(i))
+          else (is1 @ [Nop] , cml, Rollback(i))
         |_ -> failwith "Invalid type for guard")
     |IProtectV(id,p,v)      -> (if not (List.exists predGuard is1)
                                 then let ilst =  (is1 @ [AssignV(id,v)] @ is2) in
                                   (ilst, cs, None)
-                                else failwith "Invalid directive" )
+                                else failwith "Guard in instructions before the protect" )
     |IProtectE(id,p,e)      -> (let v = eval_expr e rho' map in 
                                 let ilst =  (is1 @ [IProtectV(id,p,v)] @ is2) in
                                 (ilst, cs, None))
