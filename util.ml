@@ -56,9 +56,12 @@ let print_istr istr =
   match istr with
   | Nop -> print_string "nop;\n"
   | AssignE(id, e) -> print_string (id^" := "^(print_expr e)^";\n")
+  | AssignV(id, Ival(i)) -> print_string(id^" <- "^ string_of_int i^";\n")
   | Load(id, e) -> print_string (id^" := load("^(print_expr e)^");\n")
   | StoreE(e1, e2)-> print_string ((print_expr e1)^" := store("^(print_expr e2)^");\n")
+  | StoreV(Ival(x), Ival(y))-> print_string ("mu["^string_of_int x ^"] := "^(string_of_int y)^");\n")
   | IProtectE(id, prt, e) -> print_string (id^"protect("^(print_expr e)^");\n")
+  | IProtectV(id, prt, Ival(x)) -> print_string (id^"protect("^(string_of_int(x))^");\n")
   | Guard(e, p, lst, n) -> print_string ("guard("^(print_expr e)^", "^(string_of_bool p)^", "^(string_of_int n)^");\n")
   | Fail(n) -> print_string ("fail("^(string_of_int n)^");\n")
   | _ -> print_string ""
