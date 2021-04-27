@@ -3,7 +3,10 @@ open Eval
 
 module StringMap = Map.Make(String)
 
-(** Returns a string representation of an expression. *)
+(** Returns a string representation of an expression. 
+    @param e the expression
+    @return string
+*)
 let rec print_expr (e: expr) : string = match e with
   | CstI i -> Printf.sprintf "%d" i
   | Var n -> n
@@ -15,13 +18,19 @@ let rec print_expr (e: expr) : string = match e with
   | Length i -> Printf.sprintf "length(%s)" i
   | Base i -> Printf.sprintf "base(%s)" i
 
-(** Returns a string representation of the right-hand side of an assignment. *)
+(** Returns a string representation of the right-hand side of an assignment. 
+    @param r the rhs of an assignment
+    @return string
+*)
 let print_rhs (r: rhs) : string = match r with
   | Expr e -> print_expr e
   | PtrRead e -> Printf.sprintf "*(%s)" (print_expr e)
   | ArrayRead (i, e) -> Printf.sprintf "%s[%s]" i (print_expr e)
 
-(** Returns a string representation of the right-hand side of a command. *)
+(** Returns a string representation of the right-hand side of a command. 
+    @param c the command
+    @return string
+*)
 let print_cmd (c: cmd) : string =
   let rec helper_cmd (c: cmd) : string = match c with
     | Skip -> "skip"
@@ -40,18 +49,30 @@ let print_cmd (c: cmd) : string =
       in Printf.sprintf "%s := %s(%s)" i prot_type (print_rhs r)
   in helper_cmd c
 
+(** Returns a string representation of the declarations' map
+    @param map
+    @return string
+*)
 let print_decls (map: decl_type StringMap.t) : string =
   let print_type t = match t with
     | TypA (b, l) -> Printf.sprintf "[%d, %d]" b l
     | TypI -> "int"
   in StringMap.fold (fun k t s -> Printf.sprintf "%s: %s;\n%s" k (print_type t) s) map ""
 
+(** Returns a string representation of a value
+    @param v 
+    @return string
+*)
 let print_value v =
   match v with
   | Ival num -> string_of_int num^";\n"
   | Aval(b,m) -> "{base: "^(string_of_int b)^"; length: "^(string_of_int m)^";\n"
   | Pval num -> string_of_int num^";\n"
 
+(** Returns a string representation of an instruction
+    @param istr
+    @return string
+*)
 let print_istr istr =
   match istr with
   | Nop -> print_string "nop;\n"
@@ -63,15 +84,23 @@ let print_istr istr =
   | Fail(n) -> print_string ("fail("^(string_of_int n)^");\n")
   | _ -> print_string ""
 
+(** Returns a string representation of the rho memory
+    @param rho
+    @return string
+*)
 let print_rho rho = StringMap.iter (fun x y -> print_string(x^" := "^ string_of_int(y)^"\n")) rho 
 
+(** Returns a string representation of an observable
+    @param o
+    @return string
+*)
 let print_obs o = match o with
   | None                    -> print_string("None\n")
   | Read(i,lst)             -> Printf.printf "Read %d, [" i;
-                               List.iter (fun i ->Printf.printf "%d " i) lst;
-                               Printf.printf "]\n"
+    List.iter (fun i ->Printf.printf "%d " i) lst;
+    Printf.printf "]\n"
   | Write(i,lst)            -> Printf.printf "Write %d, [" i;
-                               List.iter (fun i ->Printf.printf "%d " i) lst;
-                               Printf.printf "]\n"
+    List.iter (fun i ->Printf.printf "%d " i) lst;
+    Printf.printf "]\n"
   | Fail(i)                 -> Printf.printf "Fail %d \n" i
   | Rollback(i)             -> Printf.printf "Rollback %d \n" i;;
