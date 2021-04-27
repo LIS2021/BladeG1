@@ -62,3 +62,16 @@ let print_istr istr =
   | Guard(e, p, lst, n) -> print_string ("guard("^(print_expr e)^", "^(string_of_bool p)^", "^(string_of_int n)^");\n")
   | Fail(n) -> print_string ("fail("^(string_of_int n)^");\n")
   | _ -> print_string ""
+
+let print_rho rho = StringMap.iter (fun x y -> print_string(x^" := "^ string_of_int(y)^"\n")) rho 
+
+let print_obs o = match o with
+  | None                    -> print_string("None\n")
+  | Read(i,lst)             -> Printf.printf "Read %d, [" i;
+                               List.iter (fun i ->Printf.printf "%d " i) lst;
+                               Printf.printf "]\n"
+  | Write(i,lst)            -> Printf.printf "Write %d, [" i;
+                               List.iter (fun i ->Printf.printf "%d " i) lst;
+                               Printf.printf "]\n"
+  | Fail(i)                 -> Printf.printf "Fail %d \n" i
+  | Rollback(i)             -> Printf.printf "Rollback %d \n" i;;
