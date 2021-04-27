@@ -1,17 +1,16 @@
 PKGS=opal
-SRCS=graph.ml flow_network.ml ast.ml def_use_generator.ml eval.ml util.ml blade.ml parser.ml do_blade.ml run_interp.ml
+SRCS=graph.ml flow_network.ml ast.ml def_use_generator.ml \
+	vm_types.ml eval.ml util.ml blade.ml parser.ml do_blade.ml \
+	run_interp.ml run_vm.ml
 TEST_SOURCES = test/test_fetch.ml test/test_exec.ml test/test_retire.ml
 TEST_RESULT = test/test_fetch.native test/test_exec.native test/test_retire.native
 
 .PHONY: docs clean all
 
-%.native: $(SRCS)
+%.native: $(SRCS) $(TEST_SOURCES)
 	ocamlbuild -pkgs '${PKGS}' -tag 'debug' $@
 
 test: $(TEST_RESULT)
-
-$(TEST_RESULT): $(SRCS) $(TEST_SOURCES)
-	ocamlbuild $(TEST_RESULT) -pkgs $(PKGS)
 
 docs: $(SRCS)
 	mkdir -p docs
@@ -23,4 +22,4 @@ clean:
 	-rm *.cmi *.cmo *.cma *.native a.out
 	rm -r _build
 
-all: do_blade.native
+all: do_blade.native run_interp.native run_vm.native test
