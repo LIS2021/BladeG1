@@ -31,7 +31,8 @@ let _ =
       rho = store ;
     } in
   let spec = speculator decls f in
-  let (conf', oblist, _) = eval conf decls spec [] 0 in
+  let (conf', oblist, count) = eval conf decls spec [] 0 in
   print_rho conf'.rho;
   print_mu conf'.mu;
   List.iter (fun o -> print_obs o) oblist;
+  Printf.printf "trace length: %d\n" (List.length oblist);

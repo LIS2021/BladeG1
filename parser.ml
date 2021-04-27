@@ -38,7 +38,7 @@ let parse_number = spaces >> many1 digit => implode % int_of_string
 let parse_number_expr = parse_number >>= fun n -> return (CstI n)
 
 (** Parses a binary operator *)
-let parse_op = token "+" <|> token "<" <|> token "*"
+let parse_op = token "+" <|> token "<" <|> token "&" <|> token "^"
 
 (** Parses a primary value *)
 let rec parse_value input =

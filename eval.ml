@@ -58,7 +58,8 @@ let rec eval_expr e rho map =
                           match (op,e1',e2') with
                           |("+", Ival(x), Ival(y)) -> Ival(x + y)
                           |("<", Ival(x), Ival(y)) -> Ival(Bool.to_int(x < y))
-                          |("*", Ival(x), Ival(y)) -> Ival(x land y)
+                          |("&", Ival(x), Ival(y)) -> Ival(x land y)
+                          |("^", Ival(x), Ival(y)) -> Ival(x lxor y)
                           |_ -> failwith "Invalid type for binary operation")
   | InlineIf(e,e1,e2) -> (let e' = eval_expr e rho map in
                           match e' with
@@ -67,11 +68,13 @@ let rec eval_expr e rho map =
   | Length(a)         -> (let t = StringMap.find_opt a map in
                           match t with
                           |Some(TypA(b,l)) -> Ival(l)
-                          |_ -> failwith "Invalid type for lenght")
+                          |Some(TypI) -> failwith (Printf.sprintf "Invalid type for lenght: %s is int" a)
+                          |None -> failwith (Printf.sprintf "Invalid type for length: %s is unknown" a))
   | Base(a)           -> (let t = StringMap.find_opt a map in
                           match t with
                           |Some(TypA(b,l)) -> Ival(b)
-                          |_ -> failwith "Invalid type for base")
+                          |Some(TypI) -> failwith (Printf.sprintf "Invalid type for base: %s is int" a)
+                          |None -> failwith (Printf.sprintf "Invalid type for base: %s is unknown" a))
 
 (** Transient variable map implementation
       @param is   instruction list
@@ -223,12 +226,12 @@ let eval_fetch (conf: configuration) =
         (* FETCH-PROTECT-SLH rule *)
         | ArrayRead(id_arr, e) when pct=Slh ->
           (
-            let g = BinOp(e, Length(id), "<") in
+            let g = BinOp(e, Length(id_arr), "<") in
             let g_rhs = Expr(g) in
             let v_frh = make_fresh_var() in
             let c1 = VarAssign(v_frh, g_rhs) in
-            let ptr = BinOp(Base(id), e, "+") in
-            let xor = BinOp(ptr, g, "xor") in
+            let ptr = BinOp(Base(id_arr), e, "+") in
+            let xor = BinOp(ptr, g, "^") in
             let c3 = VarAssign(id, PtrRead(xor)) in
             let c2 = VarAssign(v_frh, Expr(InlineIf(g, CstI(1), CstI(0)))) in
             let cmd_new = Seq(c1, If(g, Seq(c2, c3), Fail)) in

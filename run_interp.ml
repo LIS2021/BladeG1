@@ -22,7 +22,8 @@ let rec interp_expr (decls: decl_type StringMap.t) (mem: int Array.t) (store: (s
     (match op with
      | "+" -> v1 + v2
      | "-" -> v1 - v2
-     | "*" -> Int.logand v1 v2
+     | "&" -> v1 land v2
+     | "^" -> v1 lxor v2
      | "<" -> Bool.to_int (v1 < v2)
      | _ -> failwith "Not implemented")
   | InlineIf(e1, e2, e3) ->
