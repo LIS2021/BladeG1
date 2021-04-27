@@ -107,3 +107,8 @@ let print_obs o = match o with
     Printf.printf "]\n"
   | Fail(i)                 -> Printf.printf "Fail %d \n" i
   | Rollback(i)             -> Printf.printf "Rollback %d \n" i;;
+
+let print_mu mu =
+  print_string "memory: [";
+  Array.iter (fun v -> Printf.printf "%d, " v) mu;
+  print_string "]\n"
