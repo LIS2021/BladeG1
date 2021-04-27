@@ -1,5 +1,5 @@
 open Ast
-open Eval
+open Vm_types
 
 module StringMap = Map.Make(String)
 

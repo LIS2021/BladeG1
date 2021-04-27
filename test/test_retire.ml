@@ -2,6 +2,7 @@ open Ast
 open Eval
 open Parser
 open Util
+open Vm_types
 
 let attacker_retire conf = Retire
 

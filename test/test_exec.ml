@@ -2,6 +2,7 @@ open Ast;;
 open Eval;;
 open Parser;;
 open Util;;
+open Vm_types;;
 
 let attacker (conf:configuration) = Exec(1);;
 
@@ -22,7 +23,7 @@ let test1 =
   print_string("Rho after transient variable map:\n");
   print_rho(rho');
   print_string("-----------------------\n");;
-  
+
 
 (** Test pending  *)
 let test2 = 
@@ -139,7 +140,7 @@ let test9 =
 
 (**Test execute on IProtectV, failure case *)
 let test10 = 
-try( ignore (eval_exec 8 conf1 map)  )
+  try( ignore (eval_exec 8 conf1 map)  )
   with Failure m -> 
     print_string("-------- TEST10 --------\n");
     print_string("Error message:\n");
