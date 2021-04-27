@@ -169,7 +169,7 @@ let eval_fetch (conf: configuration) =
         | ArrayRead(id_arr, e) ->
           ( 
             let g = BinOp(e, Length(id_arr), "<") in
-            let rhs_new = Expr(BinOp(Base(id_arr), e, "+")) in
+            let rhs_new = PtrRead(BinOp(Base(id_arr), e, "+")) in
             let asgn_new = VarAssign(id, rhs_new) in
             (* if(e < length(id_arr)) then id := ptr(base(id_arr) + e) else fail *)
             let cmd_new = If(g, asgn_new, Fail) in
