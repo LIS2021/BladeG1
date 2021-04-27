@@ -1,7 +1,7 @@
 PKGS=opal
 SRCS=graph.ml flow_network.ml ast.ml def_use_generator.ml eval.ml util.ml blade.ml parser.ml do_blade.ml run_interp.ml
-TEST_SOURCES = test/test_fetch.ml
-TEST_RESULT = test/test_fetch.native
+TEST_SOURCES = test/test_fetch.ml test/test_retire.ml
+TEST_RESULT = test/test_fetch.native test/test_retire.native
 
 .PHONY: docs clean all
 
