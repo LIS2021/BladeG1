@@ -2,6 +2,7 @@
 
 open Ast
 open Parser
+open Util
 
 module StringMap = Map.Make(String)
 
@@ -21,7 +22,7 @@ let rec interp_expr (decls: decl_type StringMap.t) (mem: int Array.t) (store: (s
     (match op with
      | "+" -> v1 + v2
      | "-" -> v1 - v2
-     | "*" -> v1 * v2
+     | "*" -> Int.logand v1 v2
      | "<" -> Bool.to_int (v1 < v2)
      | _ -> failwith "Not implemented")
   | InlineIf(e1, e2, e3) ->
@@ -92,11 +93,6 @@ let rec interp_cmd decls mem store c =
 let print_store store =
   Hashtbl.iter (fun k v -> Printf.printf "%s: %d\n" k v) store
 
-let print_mem mem =
-  print_string "memory: [";
-  Array.iter (fun v -> Printf.printf "%d, " v) mem;
-  print_string "]\n"
-
 let _ =
   let (decls, c) = parse_channel_fail parse_decls_cmd stdin in
   let array_max = StringMap.fold (fun _ v vs -> match v with
@@ -108,4 +104,4 @@ let _ =
   StringMap.fold (fun k v _ -> if v = TypI then Hashtbl.replace store k 0 else ()) decls ();
   let (mem, store) = interp_cmd decls mem store c in
   print_store store;
-  print_mem mem
+  print_mu mem
