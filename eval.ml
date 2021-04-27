@@ -341,12 +341,12 @@ let eval_retire conf =
   | _                         -> failwith "Invalid directive"
 
 
-let speculator map = 
+let speculator map f = 
   fun conf ->
   match (conf.is, conf.cs) with
   | (_, (If(e,c1,c2))::xs)  -> 
     (match eval_expr e conf.rho map with
-     |Ival(b) -> if (b = 0) then PFetch(true) else PFetch(false) 
+     |Ival(b) -> if (b = 0) then PFetch(f false) else PFetch(f true) 
      |_       -> failwith "Invalid type for guard")
   | (Nop::is,_)
   | (AssignV(_,_)::is,_)
