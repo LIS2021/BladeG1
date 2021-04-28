@@ -75,40 +75,43 @@ let print_value v =
 *)
 let print_istr istr =
   match istr with
-  | Nop -> print_string "nop;\n"
-  | AssignE(id, e) -> print_string (id^" := "^(print_expr e)^";\n")
-  | AssignV(id, Ival(i)) -> print_string(id^" <- "^ string_of_int i^";\n")
-  | Load(id, e) -> print_string (id^" := load("^(print_expr e)^");\n")
-  | StoreE(e1, e2)-> print_string ((print_expr e1)^" := store("^(print_expr e2)^");\n")
-  | StoreV(Ival(x), Ival(y))-> print_string ("mu["^string_of_int x ^"] := "^(string_of_int y)^");\n")
-  | IProtectE(id, prt, e) -> print_string (id^"protect("^(print_expr e)^");\n")
-  | IProtectV(id, prt, Ival(x)) -> print_string (id^"protect("^(string_of_int(x))^");\n")
-  | Guard(e, p, lst, n) -> print_string ("guard("^(print_expr e)^", "^(string_of_bool p)^", "^(string_of_int n)^");\n")
-  | Fail(n) -> print_string ("fail("^(string_of_int n)^");\n")
-  | _ -> print_string ""
+  | Nop                         -> "nop;\n"
+  | AssignE(id, e)              -> id^" := "^(print_expr e)^";\n"
+  | AssignV(id, Ival(i))        -> id^" <- "^ string_of_int i^";\n"
+  | Load(id, e)                 -> id^" := load("^(print_expr e)^");\n"
+  | StoreE(e1, e2)              -> (print_expr e1)^" := store("^(print_expr e2)^");\n"
+  | StoreV(Ival(x), Ival(y))    -> "mu["^string_of_int x ^"] <- "^(string_of_int y)^";\n"
+  | IProtectE(id, prt, e)       -> id^" := protect("^(print_expr e)^");\n"
+  | IProtectV(id, prt, Ival(x)) -> id^" <- protect("^(string_of_int(x))^");\n"
+  | Guard(e, p, lst, n)         -> "guard("^(print_expr e)^", "^(string_of_bool p)^", "^(string_of_int n)^");\n"
+  | Fail(n)                     -> "fail("^(string_of_int n)^");\n"
+  | _                           -> ""
 
 (** Returns a string representation of the rho memory
     @param rho
     @return string
 *)
-let print_rho rho = StringMap.iter (fun x y -> print_string(x^" := "^ string_of_int(y)^"\n")) rho 
+let print_rho rho = String.concat "" (StringMap.fold (fun x y l -> l @ [x^" := "^ string_of_int(y)^"\n"]) rho [] )
 
 (** Returns a string representation of an observable
-    @param o
+    @param o the observable
     @return string
 *)
 let print_obs o = match o with
-  | None                    -> print_string("None\n")
-  | Read(i,lst)             -> Printf.printf "Read %d, [" i;
-    List.iter (fun i ->Printf.printf "%d " i) lst;
-    Printf.printf "]\n"
-  | Write(i,lst)            -> Printf.printf "Write %d, [" i;
-    List.iter (fun i ->Printf.printf "%d " i) lst;
-    Printf.printf "]\n"
-  | Fail(i)                 -> Printf.printf "Fail %d \n" i
-  | Rollback(i)             -> Printf.printf "Rollback %d \n" i;;
+  | None                    -> "None\n"
+  | Read(i,lst)             -> let s0 = Printf.sprintf "Read %d, [" i in
+                               let s1 = String.concat "" (List.map (fun i -> Printf.sprintf "%d " i) lst) in
+                               let s2 = Printf.sprintf "]\n"in
+                               s0^s1^s2
+  | Write(i,lst)            -> let s0 = Printf.sprintf "Write %d, [" i in
+                               let s1 = String.concat "" (List.map (fun i -> Printf.sprintf "%d " i) lst) in
+                               let s2 = Printf.sprintf "]\n" in
+                               s0^s1^s2
+  | Fail(i)                 -> Printf.sprintf "Fail %d \n" i
+  | Rollback(i)             -> Printf.sprintf "Rollback %d \n" i;;
 
 let print_mu mu =
-  print_string "memory: [";
-  Array.iter (fun v -> Printf.printf "%d, " v) mu;
-  print_string "]\n"
+  let s0 = "memory: [" in
+  let s1 = String.concat "" (Array.to_list(Array.map (fun v -> Printf.sprintf "%d, " v) mu)) in
+  let s2 = "]\n" in
+  s0^s1^s2;;
