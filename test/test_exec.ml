@@ -17,11 +17,11 @@ let test1 =
   let ((is1, i, is2), rho') = trvar_map is [] rho 5 in
   print_string("-------- TEST1 --------\n");
   print_string("Instruction list:\n");
-  List.iter print_istr is;
+  List.iter (fun i -> print_string (print_istr i)) is;
   print_string("Rho before transient variable map:\n");
-  print_rho(rho);
+  print_string (print_rho rho);
   print_string("Rho after transient variable map:\n");
-  print_rho(rho');
+  print_string (print_rho rho');
   print_string("-----------------------\n");;
 
 
@@ -31,7 +31,7 @@ let test2 =
   let p = pending is in
   print_string("-------- TEST2 --------\n");
   print_string("Instruction list:\n");
-  List.iter print_istr is;
+  List.iter (fun i -> print_string (print_istr i)) is;
   print_string("Pending List:\n");
   List.iter (fun i ->Printf.printf "%d\n" i) p;
   print_string("-----------------------\n");;
@@ -62,11 +62,11 @@ let test3 =
   let  (conf,obs) = eval_exec 1 conf1 map in
   print_string("-------- TEST3 --------\n");
   print_string("Instruction list before execute:\n");
-  List.iter print_istr conf1.is;
+  List.iter (fun i -> print_string (print_istr i)) conf1.is;
   print_string("Instruction list after execute:\n");
-  List.iter print_istr conf.is;
+  List.iter (fun i -> print_string (print_istr i)) conf.is;
   print_string ("Observable: ");
-  print_obs(obs);
+  print_string (print_obs obs);
   print_string("-----------------------\n");;
 
 (** Test execute on Load *)
@@ -74,11 +74,11 @@ let test4 =
   let  (conf,obs) = eval_exec 2 conf1 map in
   print_string("-------- TEST4 --------\n");
   print_string("Instruction list before execute:\n");
-  List.iter print_istr conf1.is;
+  List.iter (fun i -> print_string (print_istr i)) conf1.is;
   print_string("Instruction list after execute:\n");
-  List.iter print_istr conf.is;
+  List.iter (fun i -> print_string (print_istr i)) conf.is;
   print_string ("Observable: ");
-  print_obs(obs);
+  print_string (print_obs obs);
   print_string("-----------------------\n");;
 
 (** Test execute on StoreE *)
@@ -86,11 +86,11 @@ let test5 =
   let  (conf,obs) = eval_exec 3 conf1 map in
   print_string("-------- TEST5 --------\n");
   print_string("Instruction list before execute:\n");
-  List.iter print_istr conf1.is;
+  List.iter (fun i -> print_string (print_istr i)) conf1.is;
   print_string("Instruction list after execute:\n");
-  List.iter print_istr conf.is;
+  List.iter (fun i -> print_string (print_istr i)) conf.is;
   print_string ("Observable: ");
-  print_obs(obs);
+  print_string (print_obs obs);
   print_string("-----------------------\n");;
 
 (** Test execute on Load, failure case *)
@@ -107,11 +107,11 @@ let test7 =
   let  (conf,obs) = eval_exec 5 conf1 map in
   print_string("-------- TEST7 --------\n");
   print_string("Instruction list before execute:\n");
-  List.iter print_istr conf1.is;
+  List.iter (fun i -> print_string (print_istr i)) conf1.is;
   print_string("Instruction list after execute:\n");
-  List.iter print_istr conf.is;
+  List.iter (fun i -> print_string (print_istr i)) conf.is;
   print_string ("Observable: ");
-  print_obs(obs);
+  print_string (print_obs obs);
   print_string("-----------------------\n");;
 
 (** Test execute on Guard *)
@@ -119,11 +119,11 @@ let test8 =
   let  (conf,obs) = eval_exec 6 conf1 map in
   print_string("-------- TEST8 --------\n");
   print_string("Instruction list before execute:\n");
-  List.iter print_istr conf1.is;
+  List.iter (fun i -> print_string (print_istr i)) conf1.is;
   print_string("Instruction list after execute:\n");
-  List.iter print_istr conf.is;
+  List.iter (fun i -> print_string (print_istr i)) conf.is;
   print_string ("Observable: ");
-  print_obs(obs);
+  print_string (print_obs obs);
   print_string("-----------------------\n");;
 
 (** Test execute on Guard, misprediction *)
@@ -131,11 +131,11 @@ let test9 =
   let  (conf,obs) = eval_exec 7 conf1 map in
   print_string("-------- TEST9 --------\n");
   print_string("Instruction list before execute:\n");
-  List.iter print_istr conf1.is;
+  List.iter(fun i -> print_string (print_istr i)) conf1.is;
   print_string("Instruction list after execute:\n");
-  List.iter print_istr conf.is;
+  List.iter (fun i -> print_string (print_istr i)) conf.is;
   print_string ("Observable: ");
-  print_obs(obs);
+  print_string (print_obs obs);
   print_string("-----------------------\n");;
 
 (**Test execute on IProtectV, failure case *)
@@ -152,18 +152,18 @@ let test11 =
   let  (conf,obs) = eval_exec 9 conf1 map in
   print_string("-------- TEST11 --------\n");
   print_string("Instruction list before execute:\n");
-  List.iter print_istr conf1.is;
+  List.iter (fun i -> print_string (print_istr i)) conf1.is;
   print_string("Instruction list after execute:\n");
-  List.iter print_istr conf.is;
+  List.iter (fun i -> print_string (print_istr i)) conf.is;
   print_string ("Observable: ");
-  print_obs(obs);
+  print_string (print_obs obs);
   print_string("-----------------------\n");;
 
 (** Test execute on IprotectE *)
 let test12 =
   try( ignore (eval_exec 10 conf1 map)  )
   with Failure m -> 
-    print_string("-------- TEST10 --------\n");
+    print_string("-------- TEST12 --------\n");
     print_string("Error message:\n");
     print_string( m );
     print_string("\n-----------------------\n");;

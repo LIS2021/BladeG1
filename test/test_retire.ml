@@ -7,10 +7,10 @@ open Vm_types
 let attacker_retire conf = Retire
 
 let print_conf conf = 
-  List.iter (fun i -> Util.print_istr i) conf.is;
+  List.iter (fun i -> print_string (print_istr i)) conf.is;
   List.map Util.print_cmd conf.cs |> ignore;
   Array.iter (fun i -> Printf.printf "%d " i) conf.mu;
-  Util.print_rho conf.rho;
+  print_string (print_rho conf.rho);
   Printf.printf "\n"
 
 let test id_test (conf: configuration) = 
@@ -25,7 +25,7 @@ let test id_test (conf: configuration) =
   Printf.printf "After: \n";
   print_conf c;
   Printf.printf "Obs: ";
-  Util.print_obs (List.hd obs);
+  print_string(print_obs (List.hd obs));
   Printf.printf "\n"
 
 let test_nop = 

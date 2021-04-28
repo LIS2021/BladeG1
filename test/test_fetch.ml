@@ -12,7 +12,7 @@ let fetch_lover_attacker conf =
     | _ -> Fetch
   with
   | _ -> 
-    (let _ = List.iter (fun is -> print_istr is) conf.is in
+    (let _ = List.iter (fun is -> print_string( print_istr is)) conf.is in
      Fetch)
 
 let test1() =
