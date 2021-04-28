@@ -105,4 +105,4 @@ let _ =
   StringMap.fold (fun k v _ -> if v = TypI then Hashtbl.replace store k 0 else ()) decls ();
   let (mem, store) = interp_cmd decls mem store c in
   print_store store;
-  print_mu mem
+  print_string (print_mu mem)
