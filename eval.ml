@@ -36,7 +36,7 @@ let fresh_var() =
 let make_fresh_var() =
   let new_var = "var" in
   let num = fresh_var() in
-  new_var^(string_of_int num)
+  "\'"^new_var^(string_of_int num)
 
 (** Evaluation of expressions
             @param e    the expression
@@ -241,11 +241,13 @@ let eval_fetch (conf: configuration) =
         (* FETCH-PROTECT-ARRAY & FETCH-PROTECT-PTR (premises in the two rules are the same) *)
         | _ -> 
           (
-            let id_new = id^"'" in
-            let asgn_new = VarAssign(id_new, rhs) in 
-            let protect_new = Protect(id, pct, Expr(Var(id_new))) in
-            let cs_t = List.tl conf.cs in
-            {conf with cs=asgn_new::protect_new::cs_t}
+            if pct=Slh then failwith "SLH protect method invalid for this expression"
+            else 
+              let id_new = "'"^id in
+              let asgn_new = VarAssign(id_new, rhs) in 
+              let protect_new = Protect(id, pct, Expr(Var(id_new))) in
+              let cs_t = List.tl conf.cs in
+              {conf with cs=asgn_new::protect_new::cs_t}
           )
       )
     | _ -> failwith "Invalid directive"
