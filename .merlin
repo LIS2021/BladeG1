@@ -1,4 +1,5 @@
 PKG opal
+PKG llvm
 
 S .
 B _build

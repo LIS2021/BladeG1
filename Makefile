@@ -1,7 +1,7 @@
-PKGS=opal
+PKGS=opal llvm
 SRCS=graph.ml flow_network.ml ast.ml def_use_generator.ml \
 	vm_types.ml eval.ml util.ml blade.ml parser.ml do_blade.ml \
-	run_interp.ml run_vm.ml
+	run_interp.ml run_vm.ml gen_llvm.ml
 TEST_SOURCES = test/test_fetch.ml test/test_exec.ml test/test_retire.ml
 TEST_RESULT = test/test_fetch.native test/test_exec.native test/test_retire.native
 
