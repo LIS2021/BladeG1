@@ -56,11 +56,6 @@ let printmu_declaration mem =
 
 let fundef = L.define_function "main" (L.function_type void_type [||]) module_m
 
-(* Recursive function for build recursively lltype of llvalue *)
-(*let rec ltype_of_typ ty = match ty with
-  	| A.TypI 			-> int_type
-  	| A.TypA(tp, x) 	-> L.array_type int_type x *)
-
 (** Function for looking up for llvalue of a name in the current table or in the global table 
     	@param name the name for which we are searching for
     	@param tab the map associated to current scope
