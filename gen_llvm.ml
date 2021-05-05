@@ -4,6 +4,7 @@ module StringMap = Map.Make(String)
 open Ast;;
 open Parser;;
 open Vm_types;;
+open Util;;
 
 type vartype = Int of L.llvalue | Arr of int * int 
 
@@ -24,15 +25,15 @@ let primitive_bin_operators_int =
   	;	"*",     (L.build_mul, "mult")
   	;	"/",     (L.build_sdiv, "div")
   	; 	"%",     (L.build_srem, "mod")
-  	; 	"==",   (L.build_icmp L.Icmp.Eq, "equal")
-  	; 	"!=", 	   (L.build_icmp L.Icmp.Ne, "neq")
-  	; 	"<",    (L.build_icmp L.Icmp.Slt, "le")
-  	; 	"<=", 	   (L.build_icmp L.Icmp.Sle, "leq")
+  	; 	"==",    (L.build_icmp L.Icmp.Eq, "equal")
+  	; 	"!=", 	 (L.build_icmp L.Icmp.Ne, "neq")
+  	; 	"<",     (L.build_icmp L.Icmp.Slt, "le")
+  	; 	"<=", 	 (L.build_icmp L.Icmp.Sle, "leq")
   	; 	">",     (L.build_icmp L.Icmp.Sgt, "ge")
-  	;   ">=",     (L.build_icmp L.Icmp.Sge, "geq")
-  	;   "&", 	   (L.build_and, "and")
-  	; 	"|", 	   (L.build_or, "or")
-  	;   "^",        (L.build_xor, "xor")
+  	;   ">=",    (L.build_icmp L.Icmp.Sge, "geq")
+  	;   "&", 	 (L.build_and, "and")
+  	; 	"|", 	 (L.build_or, "or")
+  	;   "^",     (L.build_xor, "xor")
   	]
 
 (** Declare in the current module the print_float prototype
@@ -56,10 +57,31 @@ let fundef = L.define_function "main" (L.function_type void_type [||]) module_m
 *)
 let lookup name tab =
   	try
-    		StringMap.find name tab
+    	StringMap.find name tab
   	with
-  	| Not_found -> L.lookup_global name module_m |> Option.get
+  	| _ -> L.lookup_global name module_m |> Option.get
 
+let rec build_expr e tab mem ibuilder =
+match e with
+|CstI(i) 			-> 	L.const_int int_type i
+|Var(id)			-> 	(match StringMap.find id tab with
+						|Int(li) -> li
+						|Arr(b,l) -> failwith "Invalid evaluation")
+|BinOp(e1, e2, op) 	-> 	let le1 = build_expr e1 tab mem ibuilder in
+						let le2 = build_expr e2 tab mem ibuilder in
+					  	let (lop, lab) = List.assoc op primitive_bin_operators_int in
+					  	lop le1 le2 lab ibuilder
+|InlineIf(e, e1, e2)-> 	let le = build_expr e tab mem ibuilder in
+						let zero = L.const_int int_type 0 in
+						if le = zero (** testare *)
+						then build_expr e2 tab mem ibuilder
+						else build_expr e1 tab mem ibuilder 
+|Length(id)			->	(match StringMap.find id tab with
+						|Arr(b,l) -> L.const_int int_type l
+						|_ -> failwith "Invalid evaluation")
+|Base(id)			-> 	(match StringMap.find id tab with
+						|Arr(b,l) -> L.const_int int_type b
+						|_ -> failwith "Invalid evaluation")
 
 let rec build_command c tab mem ibuilder =
   	let fail_func = L.lookup_function "fail" module_m |> Option.get in
@@ -75,16 +97,28 @@ let rec build_command c tab mem ibuilder =
     	| None -> let _ = f builder in () 
 
   	in
+	let rec build_rhs rh tab mem ibuilder =
+		match rh with
+		|Expr(expr) 		-> build_expr expr tab mem ibuilder
+		|PtrRead(expr)		-> let le = build_expr expr tab mem ibuilder in
+								L.build_gep mem [|le|] "ptr" ibuilder 
+		|_					-> failwith "Invalid option" 
+	in
   match c with
   | Skip -> ibuilder 
   | Fail -> let _ = L.build_call fail_func [||] "" ibuilder in ibuilder
   | VarAssign(id, rh) ->
-    (
-      let rh_value = build_rhs rh tab mem ibuilder in
-      let value = StringMap.find id tab in
-      match value with
-      | Int(lvalue) -> let _ = L.build_store rh_value lvalue ibuilder in ibuilder 
-      | Arr(_,_) -> failwith "Invalid assignment!"
+    ( match rh with
+	  | ArrayRead(ide,expr)	-> let g = BinOp(expr, Length(ide), "<") in
+            				   let rhs_new = PtrRead(BinOp(Base(ide), expr, "+")) in
+            				   let asgn_new = VarAssign(id, rhs_new) in
+            				   let cmd_new = If(g, asgn_new, Fail) in
+							   build_command cmd_new tab mem ibuilder
+	  | _					-> (let rh_value = build_rhs rh tab mem ibuilder in
+								let value = StringMap.find id tab in
+								match value with
+								| Int(lvalue) -> let _ = L.build_store rh_value lvalue ibuilder in ibuilder 
+								| Arr(_,_) -> failwith "Invalid assignment!")
     ) 
   | PtrAssign(e1, e2) -> 
     (
@@ -162,4 +196,8 @@ let () =
       | TypI       -> let local_var = L.build_alloca int_type k ibuilder in Int(local_var)
       | TypA(b, l) -> Arr(b,l)) in
   let sym_tab = StringMap.mapi build_decls decls in
-  let _ = build_command c sym_tab mem ibuilder in () 
+  print_string (print_cmd c);
+  let ibuilder' = build_command c sym_tab mem ibuilder in
+  let _ = L.build_ret_void ibuilder' in
+  print_string (Llvm.string_of_llmodule module_m);
+  ignore(Llvm_bitwriter.write_bitcode_file module_m ! (ref "a.bc"))

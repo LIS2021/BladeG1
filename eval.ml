@@ -63,7 +63,7 @@ let rec eval_expr e rho map =
                           |_ -> failwith "Invalid type for binary operation")
   | InlineIf(e,e1,e2) -> (let e' = eval_expr e rho map in
                           match e' with
-                          |Ival(b) -> if b == 1 then eval_expr e1 rho map else eval_expr e2 rho map
+                          |Ival(b) -> if b >= 1 then eval_expr e1 rho map else eval_expr e2 rho map
                           |_       -> failwith "Invalid type for guard")
   | Length(a)         -> (let t = StringMap.find_opt a map in
                           match t with
