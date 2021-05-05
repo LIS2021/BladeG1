@@ -1,0 +1,3 @@
+a: [0, 10];
+x: int;
+x := protect_fence(a[0]);

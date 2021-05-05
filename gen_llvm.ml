@@ -71,6 +71,13 @@ let lookup name tab =
   with
   | _ -> L.lookup_global name module_m |> Option.get
 
+let tmp_count = ref 0
+
+let gen_tmp_var =
+  let name = Printf.sprintf "_%d" !tmp_count in
+  incr tmp_count;
+  name
+
 (**
    		It adds a terminal instruction if there isn't one already
    		@param builder 	the builder used to generate instructions
@@ -210,15 +217,26 @@ and build_command c tab mem ibuilder =
       let _ = L.build_cond_br bool_val bbody bcont builder_pred in
       L.builder_at_end llcontext bcont
     )
-  | Protect(id, Slh, ArrayRead(id_arr, e)) -> ibuilder
-  (* TODO
-     let zero = L.const_int int_type 0 in
-     let one = L.build_not zero "not" ibuilder in
-     let e_value = build_expr e tab mem ibuilder in
-     let mask = L.build_mul one e_value "mask" ibuilder in
-
-  *)
-  | _ -> failwith "not yet implemented"
+  | Protect(id, p, ArrayRead(id_arr, e)) when p = Slh || p = Auto ->
+    let e1 = BinOp(e, Length(id_arr), "<") in
+    let e2 = BinOp(e, Base(id_arr), "+") in
+    let tmp_var_name = gen_tmp_var in
+    let tmp_var = L.build_alloca int_type tmp_var_name ibuilder in
+    let tab = StringMap.add tmp_var_name (Int tmp_var) tab in
+    let c1 = VarAssign(tmp_var_name, Expr e1) in
+    let all_ones = Int.lognot 0 in
+    let c2 = VarAssign(tmp_var_name, Expr (BinOp(CstI all_ones, Var tmp_var_name, "*"))) in
+    let c3 = VarAssign(tmp_var_name, PtrRead(BinOp(e2, Var tmp_var_name, "^"))) in
+    let c' = Seq(c1, If(Var tmp_var_name, Seq(c2, c3), Fail)) in
+    build_command c' tab mem ibuilder
+  | Protect(id, _, r) ->
+    let v, ibuilder = build_rhs r tab mem ibuilder in
+    let value = StringMap.find id tab in
+    (match value with
+     | Int(lvalue) -> let _ = L.build_store v lvalue ibuilder in ibuilder 
+     | Arr(_,_) -> failwith "Invalid assignment!") |> ignore;
+    L.build_fence L.AtomicOrdering.SequentiallyConsistent false ibuilder |> ignore;
+    ibuilder
 
 let options = [("-o", Arg.Set_string output_file, "Output file (default: 'a.bc')")]
 

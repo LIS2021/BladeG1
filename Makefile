@@ -34,13 +34,6 @@ test%.o: linked_test%.bc
 test%: test%.o
 	$(CLANG) $? -o $@
 
-#compile: rt-support.bc a.bc
-#	./gen_llvm.native < test2.txt
-#	$(LLVMLINK) a.bc rt-support.bc -o test.bc
-#	$(LLC) -filetype=obj test.bc
-#	clang test.o
-#	./a.out
-
 docs: $(SRCS)
 	mkdir -p docs
 	ocamlfind ocamlc -linkpkg -package opal $^
