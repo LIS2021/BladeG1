@@ -4,20 +4,26 @@ SRCS=graph.ml flow_network.ml ast.ml def_use_generator.ml \
 	run_interp.ml run_vm.ml gen_llvm.ml
 TEST_SOURCES = test/test_fetch.ml test/test_exec.ml test/test_retire.ml
 TEST_RESULT = test/test_fetch.native test/test_exec.native test/test_retire.native
-TESTS = test test2 test3
+TESTS = test1 test2 test3 testarr testfence testslh testif testinlineif testfail
 LINK=llvm-link
 LLC=llc
 AS=llvm-as
 CLANG=clang
 
-.PHONY: docs clean all
+.PHONY: docs clean all battery_test compilation_tests
 
-all: do_blade.native run_interp.native run_vm.native gen_llvm.native battery_test
+all: do_blade.native run_interp.native run_vm.native gen_llvm.native battery_test $(TESTS)
 
 %.native: $(SRCS) $(TEST_SOURCES)
 	ocamlbuild -pkgs '${PKGS}' -tag 'debug' $@
 
 battery_test: $(TEST_RESULT)
+
+compilation_tests: $(TESTS)
+	for test in $(TESTS); do \
+	echo "$$test:" ; \
+	./$$test ; \
+	done
 
 rt-support.bc: rt-support.c
 	$(CLANG) -c $? -emit-llvm -o $@
@@ -41,5 +47,5 @@ docs: $(SRCS)
 	make clean
 
 clean:
-	-rm *.cmi *.cmo *.cma *.native a.out *.bc *.o *.ll
+	-rm *.cmi *.cmo *.cma *.native a.out *.bc *.o *.ll $(TESTS)
 	rm -r _build 

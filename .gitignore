@@ -10,3 +10,12 @@ a.out
 *.o
 *.ll
 *.bc
+test1
+test2
+test3
+testarr
+testfence
+testslh
+testif
+testinlineif
+testfail

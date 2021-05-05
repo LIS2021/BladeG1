@@ -1,3 +1,5 @@
 a: [0, 10];
 x: int;
+a[0] := 1;
 x := protect_fence(a[0]);
+if x then skip else fail endif
