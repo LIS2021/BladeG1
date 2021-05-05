@@ -1,0 +1,15 @@
+i: int;
+i1: int;
+sum: int;
+tmp: int;
+a: [0, 10];
+
+while (i < length(a)) do
+    a[i] := i;
+    i := i + 1;
+endwhile;
+while (i1 < length(a)) do
+    tmp := a[i1];
+    sum := sum + tmp;
+    i1 := i1 + 1
+endwhile;
