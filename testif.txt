@@ -1,0 +1,4 @@
+a: [0, 10];
+x: int;
+x := a[0];
+if x then fail; else skip; endif

@@ -8,3 +8,5 @@ docs
 *.where
 a.out
 *.o
+*.ll
+*.bc
