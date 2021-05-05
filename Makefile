@@ -4,25 +4,42 @@ SRCS=graph.ml flow_network.ml ast.ml def_use_generator.ml \
 	run_interp.ml run_vm.ml gen_llvm.ml
 TEST_SOURCES = test/test_fetch.ml test/test_exec.ml test/test_retire.ml
 TEST_RESULT = test/test_fetch.native test/test_exec.native test/test_retire.native
+TESTS = test test2 test3
+LINK=llvm-link
+LLC=llc
+AS=llvm-as
+CLANG=clang
 
 .PHONY: docs clean all
+
+all: do_blade.native run_interp.native run_vm.native gen_llvm.native battery_test
 
 %.native: $(SRCS) $(TEST_SOURCES)
 	ocamlbuild -pkgs '${PKGS}' -tag 'debug' $@
 
-test: $(TEST_RESULT)
+battery_test: $(TEST_RESULT)
 
-rtsupport: 
-		clang -emit-llvm -S rt-support.c -o rt-support.ll; \
-		llvm-as rt-support.ll -o rt-support.bc
+rt-support.bc: rt-support.c
+	$(CLANG) -c $? -emit-llvm -o $@
 
+test%.bc: test%.txt gen_llvm.native
+	./gen_llvm.native -o $@ < $^
 
-compile: rtsupport
-		./gen_llvm.native < $(file);\
-		 llvm-link a.bc rt-support.bc -o test.bc;\
-		 llc -filetype=obj test.bc;\
-		 clang test.o;\
-		 ./a.out
+linked_test%.bc: test%.bc rt-support.bc
+	$(LINK) $? -o $@
+
+test%.o: linked_test%.bc
+	$(LLC) -filetype=obj $? -o $@
+
+test%: test%.o
+	$(CLANG) $? -o $@
+
+#compile: rt-support.bc a.bc
+#	./gen_llvm.native < test2.txt
+#	$(LLVMLINK) a.bc rt-support.bc -o test.bc
+#	$(LLC) -filetype=obj test.bc
+#	clang test.o
+#	./a.out
 
 docs: $(SRCS)
 	mkdir -p docs
@@ -33,5 +50,3 @@ docs: $(SRCS)
 clean:
 	-rm *.cmi *.cmo *.cma *.native a.out *.bc *.o *.ll
 	rm -r _build 
-
-all: do_blade.native run_interp.native run_vm.native test
