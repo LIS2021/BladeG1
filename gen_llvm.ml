@@ -95,7 +95,8 @@ let rec build_expr e tab mem ibuilder =
     (L.build_intcast le3 int_type "ext" ibuilder, ibuilder)
   |InlineIf(e, e1, e2)->
     (
-      let bool_val, ibuilder = build_expr e tab mem ibuilder in
+      let cond_val, ibuilder = build_expr e tab mem ibuilder in
+      let bool_val = L.build_icmp L.Icmp.Ne zero cond_val "cond" ibuilder in
       let bthen = L.append_block llcontext "then" fundef in
       let belse = L.append_block llcontext "else" fundef in
       let bcont = L.append_block llcontext "cont" fundef in
@@ -117,35 +118,43 @@ let rec build_expr e tab mem ibuilder =
       |Arr(b,l) -> (L.const_int int_type b, ibuilder)
       |_ -> failwith "Invalid evaluation")
 
-let rec build_command c tab mem ibuilder =
+let rec build_rhs rh tab mem ibuilder =
   let fail_func = L.lookup_function "fail" module_m |> Option.get in
-  let rec build_rhs rh tab mem ibuilder =
-    match rh with
-    |Expr(expr) 		-> build_expr expr tab mem ibuilder
-    |PtrRead(expr)		->
-      let le, ibuilder = build_expr expr tab mem ibuilder in
-      let gep = L.build_gep mem [|le|] "ptr" ibuilder in
-      let load = L.build_load gep "load" ibuilder in
-      (load, ibuilder)
-    |_					-> failwith "Invalid option" 
-  in
+  match rh with
+  |Expr(expr) 		-> build_expr expr tab mem ibuilder
+  |PtrRead(expr)		->
+    let le, ibuilder = build_expr expr tab mem ibuilder in
+    let gep = L.build_gep mem [|le|] "ptr" ibuilder in
+    let load = L.build_load gep "load" ibuilder in
+    (load, ibuilder)
+  | ArrayRead(ide,expr)	->
+    let cond_val, ibuilder = build_expr (BinOp(expr, Length(ide), "<")) tab mem ibuilder in
+    let bool_val = L.build_icmp L.Icmp.Ne zero cond_val "cond" ibuilder in
+    let bthen = L.append_block llcontext "then" fundef in
+    let belse = L.append_block llcontext "else" fundef in
+    let bcont = L.append_block llcontext "cont" fundef in
+    let then_builder = L.builder_at_end llcontext bthen in
+    let v1, bt = build_rhs (PtrRead(BinOp(Base(ide), expr, "+"))) tab mem then_builder in
+    let _ = add_terminal bt (L.build_br bcont) in 
+    let else_builder = L.builder_at_end llcontext belse in
+    let _ = L.build_call fail_func [||] "" else_builder in
+    let v2, be = build_expr (CstI 0) tab mem else_builder in
+    let _ = add_terminal be (L.build_br bcont) in
+    let _ = L.build_cond_br bool_val bthen belse ibuilder in
+    let _ = L.position_at_end bcont ibuilder in
+    let phi = L.build_phi [(v1, bthen); (v2, belse)] "phi" ibuilder in
+    (phi, L.builder_at_end llcontext bcont)
+and build_command c tab mem ibuilder =
+  let fail_func = L.lookup_function "fail" module_m |> Option.get in
   match c with
-  | Skip -> ibuilder 
+  | Skip -> ibuilder
   | Fail -> let _ = L.build_call fail_func [||] "" ibuilder in ibuilder
   | VarAssign(id, rh) ->
-    ( match rh with
-      | ArrayRead(ide,expr)	->
-        let g = BinOp(expr, Length(ide), "<") in
-        let rhs_new = PtrRead(BinOp(Base(ide), expr, "+")) in
-        let asgn_new = VarAssign(id, rhs_new) in
-        let cmd_new = If(g, asgn_new, Fail) in
-        build_command cmd_new tab mem ibuilder
-      | _					-> (let rh_value, ibuilder = build_rhs rh tab mem ibuilder in
-                  let value = StringMap.find id tab in
-                  match value with
-                  | Int(lvalue) -> let _ = L.build_store rh_value lvalue ibuilder in ibuilder 
-                  | Arr(_,_) -> failwith "Invalid assignment!")
-    ) 
+    let rh_value, ibuilder = build_rhs rh tab mem ibuilder in
+    let value = StringMap.find id tab in
+    (match value with
+     | Int(lvalue) -> let _ = L.build_store rh_value lvalue ibuilder in ibuilder 
+     | Arr(_,_) -> failwith "Invalid assignment!")
   | PtrAssign(e1, e2) -> 
     (
       let v1, ibuilder = build_expr e1 tab mem ibuilder in
