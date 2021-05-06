@@ -94,7 +94,7 @@ let rec build_expr e tab mem ibuilder =
     let le2, ibuilder = build_expr e2 tab mem ibuilder in
     let (lop, lab) = List.assoc op primitive_bin_operators_int in
     let le3 = lop le1 le2 lab ibuilder in
-    (L.build_intcast le3 int_type "ext" ibuilder, ibuilder)
+    (L.build_zext le3 int_type "zext" ibuilder, ibuilder)
   |InlineIf(e, e1, e2)->
     (
       let cond_val, ibuilder = build_expr e tab mem ibuilder in
@@ -221,7 +221,7 @@ and build_command c tab mem ibuilder =
     let c1 = VarAssign(tmp_var_name, Expr e1) in
     let all_ones = Int.lognot 0 in
     let c2 = VarAssign(tmp_var_name, Expr (BinOp(CstI all_ones, Var tmp_var_name, "*"))) in
-    let c3 = VarAssign(tmp_var_name, PtrRead(BinOp(e2, Var tmp_var_name, "^"))) in
+    let c3 = VarAssign(id, PtrRead(BinOp(e2, Var tmp_var_name, "^"))) in
     let c' = Seq(c1, If(Var tmp_var_name, Seq(c2, c3), Fail)) in
     build_command c' tab mem ibuilder
   | Protect(id, _, r) ->
