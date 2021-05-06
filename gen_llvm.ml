@@ -226,11 +226,11 @@ and build_command c tab mem ibuilder =
     build_command c' tab mem ibuilder
   | Protect(id, _, r) ->
     let v, ibuilder = build_rhs r tab mem ibuilder in
+    L.build_fence L.AtomicOrdering.SequentiallyConsistent false ibuilder |> ignore;
     let value = StringMap.find id tab in
     (match value with
      | Int(lvalue) -> let _ = L.build_store v lvalue ibuilder in ibuilder 
      | Arr(_,_) -> failwith "Invalid assignment!") |> ignore;
-    L.build_fence L.AtomicOrdering.SequentiallyConsistent false ibuilder |> ignore;
     ibuilder
 
 let options = [("-o", Arg.Set_string output_file, "Output file (default: 'a.bc')")]
