@@ -26,19 +26,19 @@ compilation_tests: $(TESTS)
 	done
 
 rt-support.bc: rt-support.c
-	$(CLANG) -c $? -emit-llvm -o $@
+	$(CLANG) -c $^ -emit-llvm -o $@
 
 test%.bc: test%.txt gen_llvm.native
-	./gen_llvm.native -o $@ < $^
+	./gen_llvm.native -o $@ < $<
 
 linked_test%.bc: test%.bc rt-support.bc
-	$(LINK) $? -o $@
+	$(LINK) $^ -o $@
 
 test%.o: linked_test%.bc
-	$(LLC) -filetype=obj $? -o $@
+	$(LLC) -filetype=obj $^ -o $@
 
 test%: test%.o
-	$(CLANG) $? -o $@
+	$(CLANG) $^ -o $@
 
 docs: $(SRCS)
 	mkdir -p docs
