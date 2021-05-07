@@ -221,7 +221,7 @@ and build_command c tab mem ibuilder =
     let c1 = VarAssign(tmp_var_name, Expr e1) in
     let all_ones = Int.lognot 0 in
     let c2 = VarAssign(tmp_var_name, Expr (BinOp(CstI all_ones, Var tmp_var_name, "*"))) in
-    let c3 = VarAssign(id, PtrRead(BinOp(e2, Var tmp_var_name, "^"))) in
+    let c3 = VarAssign(id, PtrRead(BinOp(e2, Var tmp_var_name, "&"))) in
     let c' = Seq(c1, If(Var tmp_var_name, Seq(c2, c3), Fail)) in
     build_command c' tab mem ibuilder
   | Protect(id, _, r) ->

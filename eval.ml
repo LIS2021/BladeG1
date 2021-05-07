@@ -57,6 +57,7 @@ let rec eval_expr e rho map =
                           let e2' = eval_expr e2 rho map in          
                           match (op,e1',e2') with
                           |("+", Ival(x), Ival(y)) -> Ival(x + y)
+                          |("*", Ival(x), Ival(y)) -> Ival(x * y)
                           |("<", Ival(x), Ival(y)) -> Ival(Bool.to_int(x < y))
                           |("&", Ival(x), Ival(y)) -> Ival(x land y)
                           |("^", Ival(x), Ival(y)) -> Ival(x lxor y)
@@ -226,17 +227,16 @@ let eval_fetch (conf: configuration) =
         (* FETCH-PROTECT-SLH rule *)
         | ArrayRead(id_arr, e) when pct=Slh ->
           (
-            let g = BinOp(e, Length(id_arr), "<") in
-            let g_rhs = Expr(g) in
-            let v_frh = make_fresh_var() in
-            let c1 = VarAssign(v_frh, g_rhs) in
-            let ptr = BinOp(Base(id_arr), e, "+") in
-            let xor = BinOp(ptr, g, "^") in
-            let c3 = VarAssign(id, PtrRead(xor)) in
-            let c2 = VarAssign(v_frh, Expr(InlineIf(g, CstI(1), CstI(0)))) in
-            let cmd_new = Seq(c1, If(g, Seq(c2, c3), Fail)) in
+            let e1 = BinOp(e, Length(id_arr), "<") in
+            let e2 = BinOp(e, Base(id_arr), "+") in
+            let tmp_var_name = make_fresh_var() in
+            let c1 = VarAssign(tmp_var_name, Expr e1) in
+            let all_ones = Int.lognot 0 in
+            let c2 = VarAssign(tmp_var_name, Expr (BinOp(CstI all_ones, Var tmp_var_name, "*"))) in
+            let c3 = VarAssign(id, PtrRead(BinOp(e2, Var tmp_var_name, "&"))) in
+            let cmd_new = Seq(c1, If(Var tmp_var_name, Seq(c2, c3), Fail)) in
             let cs_t = List.tl conf.cs in
-            {conf with cs=cmd_new::cs_t}
+            {conf with cs=cmd_new::cs_t ; rho=(StringMap.add tmp_var_name 0 conf.rho)}
           ) 
         (* FETCH-PROTECT-ARRAY & FETCH-PROTECT-PTR (premises in the two rules are the same) *)
         | _ -> 
