@@ -5,10 +5,10 @@ SRCS=graph.ml flow_network.ml ast.ml def_use_generator.ml \
 TEST_SOURCES = test/test_fetch.ml test/test_exec.ml test/test_retire.ml
 TEST_RESULT = test/test_fetch.native test/test_exec.native test/test_retire.native
 TESTS = test1 test2 test3 testarr testfence testslh testif testinlineif testfail
-LINK=llvm-link
-LLC=llc
-AS=llvm-as
-CLANG=clang
+LINK?=llvm-link
+LLC?=llc
+AS?=llvm-as
+CLANG?=clang
 
 .PHONY: docs clean all battery_test compilation_tests
 
