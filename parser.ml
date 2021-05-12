@@ -45,14 +45,12 @@ let rec parse_value input =
   (parse_number_expr <|> parse_var) input
 
 (** Parses an expression *)
-and parse_expr input = (parse_length
-                        <|> parse_base
-                        <|> (parse_primary >>= fun e1 ->
-                             token "?" >>
-                             parse_expr >>= fun e2 ->
-                             token ":" >>
-                             parse_expr >>= fun e3 ->
-                             return (InlineIf(e1,e2,e3)))
+and parse_expr input = ((parse_primary >>= fun e1 ->
+                         token "?" >>
+                         parse_expr >>= fun e2 ->
+                         token ":" >>
+                         parse_expr >>= fun e3 ->
+                         return (InlineIf(e1,e2,e3)))
                         <|> (parse_primary >>= fun e1 ->
                              parse_op >>= fun op ->
                              parse_expr >>= fun e2 ->
@@ -62,7 +60,7 @@ and parse_primary input =
   (parse_value <|> (
       parens parse_expr >>= fun e ->
       return e
-    )) input
+    ) <|> parse_length <|> parse_base) input
 and parse_var input =
   (ident >>= fun var -> return (Var var)) input
 and parse_length input =
