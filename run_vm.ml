@@ -4,10 +4,12 @@ open Vm_types
 open Eval
 open Util
 
+let in_ord = ref false
 let spec_type = ref "perfect"
 let hit_rate = ref 0.95
 
-let options = [("-t", Arg.Set_string spec_type, "Speculator type. Can be 'perfect', 'worst' or 'probabilistic' (default: 'perfect')");
+let options = [("--in-order", Arg.Set in_ord, "In order execution ");
+               ("-t", Arg.Set_string spec_type, "Speculator type. Can be 'perfect', 'worst' or 'probabilistic' (default: 'perfect')");
                ("--hit-rate", Arg.Set_float hit_rate, "Probabilistic speculator hit rate (default: 0.95)")]
 
 let _ =
@@ -17,6 +19,7 @@ let _ =
     | "worst" -> Bool.not
     | "probabilistic" -> (fun x -> if (Random.float 1.) > !hit_rate then not x else x)
     | _ -> failwith "Invalid speculator type"
+  in let speculator = if !in_ord then speculator_io else speculator_oo 
   in let (decls, c) = parse_channel_fail parse_decls_cmd stdin in
   let array_max = StringMap.fold (fun _ v vs -> match v with
       | TypA(b, l) -> (b+l)::vs

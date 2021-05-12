@@ -52,7 +52,7 @@ let rec eval_expr e rho map =
                           match (id1, id2) with
                           |(_,Some(TypA(b,l))) -> Aval(b,l)
                           |(Some(x),_)   -> Ival(x)
-                          |(_,_) -> failwith "Identifier not declared" )             
+                          |(_,_) -> print_string id; failwith "Identifier not declared" )             
   | BinOp(e1,e2,op)   -> (let e1' = eval_expr e1 rho map in
                           let e2' = eval_expr e2 rho map in          
                           match (op,e1',e2') with
@@ -94,7 +94,7 @@ let rec trvar_map is is1 rho n =
       |Load(id,e)           -> trvar_map xs (is1 @ [x]) (StringMap.remove id rho) (n-1)
       |IProtectE(id,p,e)    -> trvar_map xs (is1 @ [x]) (StringMap.remove id rho) (n-1)
       |_                    -> trvar_map xs (is1 @ [x]) rho (n-1))
-  | _ -> failwith "Invalid directive"
+  | _ -> failwith "Invalid directive 1"
 
 (** Predicate for instruction
       @param is       instruction
@@ -114,6 +114,18 @@ let predGuard is =
   match is with
   |Guard(_,_,_,_) -> true
   |_              -> false
+
+let predWhile is =
+  match is with
+  |While(_,_)     -> true
+  |_              -> false
+
+
+let predProtect is =
+  match is with        
+  |IProtectV(_,_,_)        
+  |IProtectE(_,_,_)     -> true
+  |_                  -> false
 
 (** Pending fail and guard identifiers creation.
       @param is  instruction list
@@ -250,7 +262,7 @@ let eval_fetch (conf: configuration) =
               {conf with cs=asgn_new::protect_new::cs_t}
           )
       )
-    | _ -> failwith "Invalid directive"
+    | _ -> failwith "Invalid directive 2"
 
 (** 
    This function execute a fetch step with branch predictor (previously given as directive by the attacker) on the next command [c]. 
@@ -273,7 +285,7 @@ let eval_pfetch p conf =
         let ls = List.append conf.is [Guard(g, p, c1::cs_t, fresh())] in
         {conf with is=ls ; cs=c2::cs_t}
     )
-  | _ -> failwith "Invalid directive"
+  | _ -> failwith "Invalid directive 3"
 
 (** Execute rule implementation
           @param n the n-th instruction to execute
@@ -311,7 +323,8 @@ let rec eval_exec n conf map=
 
                                )   
     |Guard(e,pred,cml,i)    -> (match eval_expr e rho' map with
-        |Ival(b) -> if b == Bool.to_int(pred) 
+        |Ival(b) -> 
+          if b == Bool.to_int(pred) 
           then (is1 @ [Nop] @ is2, cs, None) 
           else (is1 @ [Nop] , cml, Rollback(i))
         |_ -> failwith "Invalid type for guard")
@@ -322,7 +335,7 @@ let rec eval_exec n conf map=
     |IProtectE(id,p,e)      -> (let v = eval_expr e rho' map in 
                                 let ilst =  (is1 @ [IProtectV(id,p,v)] @ is2) in
                                 (ilst, cs, None))
-    |_                      -> failwith "Invalid directive"
+    |_                      -> print_string (print_istr is);failwith "Invalid directive 4"
 
   in 
   let ((is1, i, is2),rho) = trvar_map conf.is [] conf.rho n in
@@ -343,10 +356,41 @@ let eval_retire conf =
                                   let c' = {is = List.tl conf.is; cs = conf.cs; mu = conf.mu; rho = conf.rho} in
                                   (c', None))
   | Fail (i)                  -> ({is = []; cs = []; mu = conf.mu; rho = conf.rho}, Fail(i))
-  | _                         -> failwith "Invalid directive"
+  | _                         -> failwith "Invalid directive 5"
 
+let rec get_exec is i guardb storeb =
+  (match is with
+   |AssignE(_,_)::xs     
+   |StoreE(_,_)::xs      
+   |IProtectE(_,_,_)::xs -> i                           
+   |Load(_,_)::xs        -> if not storeb then i else get_exec xs (i+1) guardb storeb       
+   |IProtectV(_,_,_)::xs -> if not guardb then i else get_exec xs (i+1) guardb storeb 
+   |Guard(_,_,_,_)::xs   -> get_exec xs (i+1) true storeb
+   |StoreV(_,_)::xs      -> get_exec xs (i+1) guardb true
+   |_::xs                -> get_exec xs (i+1) guardb storeb
+   |[]                   -> 0)
 
-let speculator map f = 
+let speculator_oo map f = 
+  fun conf ->
+  match (conf.is, conf.cs) with
+  | (_, (If(e,c1,c2))::xs)  -> 
+    (match eval_expr e conf.rho map with
+     |Ival(b) -> if (b = 0) then PFetch(f false) else PFetch(f true) 
+     |_       -> failwith "Invalid type for guard")
+  | (_, x::xs) when (not (predWhile x)) -> Fetch 
+  | ([], x::xs)                         -> Fetch
+  | (Nop::is,_)
+  | (AssignV(_,_)::is,_)
+  | (StoreV(_,_)::is,_)
+  | (Fail(_)::is,_)         -> Retire
+  | (is, _)              -> 
+    ( let n = get_exec is 0 false false
+      in
+      if n = List.length is 
+      then Exec(1) 
+      else Exec(n+1))
+
+let speculator_io map f = 
   fun conf ->
   match (conf.is, conf.cs) with
   | (_, (If(e,c1,c2))::xs)  -> 
@@ -361,6 +405,7 @@ let speculator map f =
   | (_, x::xs)              -> Fetch
   |_ -> failwith "Invalid configuration"
 
+
 let rec eval conf map attacker trace counter =
   match (conf.is, conf.cs) with
   | ([], []) -> (conf, trace, counter)
@@ -369,9 +414,9 @@ let rec eval conf map attacker trace counter =
       let dir = attacker conf in
 
       match dir with
-      | Fetch -> let conf = eval_fetch conf in 
+      | Fetch -> let conf = eval_fetch conf in
         eval conf map attacker (trace @ [None]) (counter+1)
-      | PFetch(p) -> let conf = eval_pfetch p conf in 
+      | PFetch(p) -> let conf = eval_pfetch p conf in
         eval conf map attacker (trace @ [None]) (counter+1)
       | Exec(n) -> let (conf, obs) = eval_exec n conf map in
         eval conf map attacker (trace @ [obs]) (counter+1)
