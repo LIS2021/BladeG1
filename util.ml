@@ -100,13 +100,13 @@ let print_rho rho = String.concat "" (StringMap.fold (fun x y l -> l @ [x^" := "
 let print_obs o = match o with
   | None                    -> "None\n"
   | Read(i,lst)             -> let s0 = Printf.sprintf "Read %d, [" i in
-                               let s1 = String.concat "" (List.map (fun i -> Printf.sprintf "%d " i) lst) in
-                               let s2 = Printf.sprintf "]\n"in
-                               s0^s1^s2
+    let s1 = String.concat "" (List.map (fun i -> Printf.sprintf "%d " i) lst) in
+    let s2 = Printf.sprintf "]\n"in
+    s0^s1^s2
   | Write(i,lst)            -> let s0 = Printf.sprintf "Write %d, [" i in
-                               let s1 = String.concat "" (List.map (fun i -> Printf.sprintf "%d " i) lst) in
-                               let s2 = Printf.sprintf "]\n" in
-                               s0^s1^s2
+    let s1 = String.concat "" (List.map (fun i -> Printf.sprintf "%d " i) lst) in
+    let s2 = Printf.sprintf "]\n" in
+    s0^s1^s2
   | Fail(i)                 -> Printf.sprintf "Fail %d \n" i
   | Rollback(i)             -> Printf.sprintf "Rollback %d \n" i;;
 
@@ -115,3 +115,10 @@ let print_mu mu =
   let s1 = String.concat "" (Array.to_list(Array.map (fun v -> Printf.sprintf "%d, " v) mu)) in
   let s2 = "]\n" in
   s0^s1^s2;;
+
+let print_conf c = 
+  let s_instr = String.concat "" (List.map print_istr c.is) in 
+  let s_com   = String.concat "" (List.map print_cmd c.cs) in
+  let s_mu    = print_mu c.mu in
+  let s_rho   = print_rho c.rho in
+  "Instructions: \n"^s_instr^"Commands:\n"^s_com^"Mu:\n"^s_mu^"Rho:\n"^s_rho;;
